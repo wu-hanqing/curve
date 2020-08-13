@@ -36,7 +36,7 @@ http_archive(
     name = "com_google_protobuf",
     sha256 = "cef7f1b5a7c5fba672bec2a319246e8feba471f04dcebfe362d55930ee7c1c30",
     strip_prefix = "protobuf-3.5.0",
-    urls = ["https://github.com/google/protobuf/archive/v3.5.0.zip"],
+    urls = ["https://curve-build.nos-eastchina1.126.net/protobuf-3.5.0.zip"],
 )
 
 bind(
@@ -48,7 +48,7 @@ bind(
 new_git_repository(
     name = "com_google_googletest",
     build_file = "bazel/gmock.BUILD",
-    remote = "https://github.com/google/googletest",
+    remote = "https://gitee.com/mirrors/googletest",
     tag = "release-1.8.0",
 )
 
@@ -131,7 +131,7 @@ bind(
 new_git_repository(
     name = "jsoncpp",
     build_file = "bazel/jsoncpp.BUILD",
-    remote = "https://github.com/open-source-parsers/jsoncpp.git",
+    remote = "https://gitee.com/mirrors/jsoncpp",
     tag = "1.8.4",
 )
 
@@ -149,6 +149,8 @@ new_local_repository(
 new_http_archive(
     name = "aws",
     urls = [
+        "https://curve-build.nos-eastchina1.126.net/aws-sdk-cpp-1.7.340.tar.gz",
+        "https://gh.api.99988866.xyz/github.com/aws/aws-sdk-cpp/archive/1.7.340.tar.gz",
         "https://github.com/aws/aws-sdk-cpp/archive/1.7.340.tar.gz",
         "https://mirror.bazel.build/github.com/aws/aws-sdk-cpp/archive/1.7.340.tar.gz",
     ],
