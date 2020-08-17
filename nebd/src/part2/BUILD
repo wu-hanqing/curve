@@ -52,6 +52,7 @@ cc_library(
         "//external:json",
         "//external:gflags",
         "//src/client:curve",
+        "//src/common:curve_common",
         "//nebd/src/common:nebd_common",
         "//nebd/proto:client_cc_proto"
     ],

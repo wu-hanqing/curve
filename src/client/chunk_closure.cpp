@@ -360,6 +360,13 @@ void ClientClosure::OnSuccess() {
     reqDone_->SetFailed(0);
 
     auto duration = TimeUtility::GetTimeofDayUs() - reqDone_->GetStartTime();
+
+    if (reqCtx_->optype_ == OpType::READ) {
+        LOG(INFO) << "curve client read rpc latency " << duration << " us";
+    } else if (reqCtx_->optype_ == OpType::WRITE) {
+        LOG(INFO) << "curve client write rpc latency " << duration << " us";
+    }
+
     MetricHelper::LatencyRecord(fileMetric_, duration, reqCtx_->optype_);
     MetricHelper::IncremRPCQPSCount(
         fileMetric_, reqCtx_->rawlength_, reqCtx_->optype_);

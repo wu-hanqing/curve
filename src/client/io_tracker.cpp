@@ -288,6 +288,13 @@ int IOTracker::Wait() {
 void IOTracker::Done() {
     if (errcode_ == LIBCURVE_ERROR::OK) {
         uint64_t duration = TimeUtility::GetTimeofDayUs() - opStartTimePoint_;
+
+        if (type_ == OpType::READ) {
+            LOG(INFO) << "curve client read latency " << duration << " us";
+        } else if (type_ == OpType::WRITE) {
+            LOG(INFO) << "curve client write latency " << duration << " us";
+        }
+
         MetricHelper::UserLatencyRecord(fileMetric_, duration, type_);
         MetricHelper::IncremUserQPSCount(fileMetric_, length_, type_);
     } else {

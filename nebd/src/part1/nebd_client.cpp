@@ -26,6 +26,7 @@
 #include <sys/file.h>
 #include <brpc/controller.h>
 #include <brpc/channel.h>
+#include <brpc/server.h>
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 #include <bthread/bthread.h>
@@ -50,6 +51,18 @@ namespace brpc {
 
 namespace nebd {
 namespace client {
+
+bvar::LatencyRecorder readRpcLatency;
+bvar::LatencyRecorder writeRpcLatency;
+
+int InitLatencyRecord() {
+    readRpcLatency.expose("part1_read_rpc_latency");
+    writeRpcLatency.expose("part1_write_rpc_latency");
+
+    return 0;
+}
+
+auto _ = InitLatencyRecord();
 
 using nebd::common::FileLock;
 
@@ -101,6 +114,23 @@ int NebdClient::Init(const char* confpath) {
     }
 
     heartbeatMgr_->Run();
+
+    // start dummy server
+    static std::once_flag startDummyServer;
+    std::call_once(startDummyServer, []() {
+        int startPort = 12345;
+        int endPort = 40000;
+
+        while (startPort <= endPort) {
+            int rc = brpc::StartDummyServerAt(startPort);
+            if (rc == 0) {
+                LOG(INFO) << "start dummy server success, port: " << startPort;
+                break;
+            }
+
+            ++startPort;
+        }
+    });
 
     return 0;
 }

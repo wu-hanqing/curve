@@ -175,6 +175,8 @@ class ChunkOpRequest : public std::enable_shared_from_this<ChunkOpRequest> {
     ChunkResponse *response_;
     // rpc done closure
     ::google::protobuf::Closure *done_;
+    // chunkop开始时间
+    int64_t startUs_;
 };
 
 class DeleteChunkRequest : public ChunkOpRequest {

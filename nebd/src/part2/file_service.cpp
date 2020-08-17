@@ -22,11 +22,28 @@
 
 #include <brpc/closure_guard.h>
 #include <brpc/controller.h>
+#include <bvar/bvar.h>
 
 #include "nebd/src/part2/file_service.h"
 
 namespace nebd {
 namespace server {
+
+bvar::LatencyRecorder userReadLatency;
+bvar::LatencyRecorder userWriteLatency;
+bvar::LatencyRecorder part2clientReadLatency;
+bvar::LatencyRecorder part2clientWriteLatency;
+
+int InitLatencyRecorder() {
+    userReadLatency.expose("part2_user_read_latency");
+    userWriteLatency.expose("part2_user_write_latency");
+    part2clientReadLatency.expose("part2_call_client_read_latency");
+    part2clientWriteLatency.expose("part2_call_client_write_latency");
+
+    return 0;
+}
+
+auto _ = InitLatencyRecorder();
 
 using nebd::client::RetCode;
 
@@ -41,6 +58,10 @@ void NebdFileServiceCallback(NebdServerAioContext* context) {
     switch (context->op) {
         case LIBAIO_OP::LIBAIO_OP_READ:
         {
+            int64_t expiredUs = context->expiredTime.ExpiredUs();
+            LOG(INFO) << "part2 read latency " << expiredUs << " us";
+            userReadLatency << expiredUs;
+
             nebd::client::ReadResponse* response =
                 dynamic_cast<nebd::client::ReadResponse*>(context->response);
             butil::IOBuf readBuf;
@@ -60,6 +81,10 @@ void NebdFileServiceCallback(NebdServerAioContext* context) {
         }
         case LIBAIO_OP::LIBAIO_OP_WRITE:
         {
+            int64_t expiredUs = context->expiredTime.ExpiredUs();
+            LOG(INFO) << "part2 write latency " << expiredUs << " us";
+            userWriteLatency << expiredUs;
+
             nebd::client::WriteResponse* response =
                 dynamic_cast<nebd::client::WriteResponse*>(context->response);
             if (context->ret < 0) {

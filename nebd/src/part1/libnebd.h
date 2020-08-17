@@ -60,6 +60,7 @@ struct NebdClientAioContext {
     LibAioCallBack cb;        // 异步请求的回调函数
     void* buf;                // 请求的buf
     unsigned int retryCount;  // 记录异步请求的重试次数
+    int64_t startUs;          // 记录请求的开始时间
 };
 
 // int nebd_lib_fini(void);

@@ -44,10 +44,17 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
+#include "src/common/timeutility.h"
+
+#include <bvar/bvar.h>
+
 #include "nbd/src/util.h"
 
 namespace curve {
 namespace nbd {
+
+bvar::LatencyRecorder readLatency("nbd_read_latency");
+bvar::LatencyRecorder writeLatency("nbd_write_latency");
 
 #define REQUEST_TYPE_MASK 0x0000ffff
 
@@ -88,6 +95,16 @@ void NBDServer::NBDAioCallback(struct NebdClientAioContext* aioCtx) {
         ctx->reply.error = htonl(-aioCtx->ret);
     } else {
         ctx->reply.error = htonl(0);
+    }
+
+    auto latency =
+        curve::common::TimeUtility::GetTimeofDayUs() - aioCtx->startUs;
+    if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_READ) {
+        LOG(INFO) << "nbd read latency " << latency << " us";
+        readLatency << latency;
+    } else if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_WRITE) {
+        LOG(INFO) << "nbd write latency " << latency << " us";
+        writeLatency << latency;
     }
 
     ctx->server->OnRequestFinish(ctx);
@@ -304,6 +321,8 @@ bool NBDServer::StartAioRequest(IOContext* ctx) {
             ctx->nebdAioCtx.buf = ctx->data.get();
             ctx->nebdAioCtx.cb = NBDAioCallback;
             ctx->nebdAioCtx.op = LIBAIO_OP::LIBAIO_OP_WRITE;
+            ctx->nebdAioCtx.startUs =
+                curve::common::TimeUtility::GetTimeofDayUs();
             image_->AioWrite(&ctx->nebdAioCtx);
             return true;
         case NBD_CMD_READ:
@@ -312,6 +331,8 @@ bool NBDServer::StartAioRequest(IOContext* ctx) {
             ctx->nebdAioCtx.buf = ctx->data.get();
             ctx->nebdAioCtx.cb = NBDAioCallback;
             ctx->nebdAioCtx.op = LIBAIO_OP::LIBAIO_OP_READ;
+            ctx->nebdAioCtx.startUs =
+                curve::common::TimeUtility::GetTimeofDayUs();
             image_->AioRead(&ctx->nebdAioCtx);
             return true;
         case NBD_CMD_FLUSH:

@@ -22,6 +22,8 @@
 
 #include "nebd/src/part1/async_request_closure.h"
 
+#include "nebd/src/part1/nebd_client.h"
+
 #include <glog/logging.h>
 #include <bthread/bthread.h>
 
@@ -56,6 +58,15 @@ void AsyncRequestClosure::Run() {
             if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_READ) {
                 cntl.response_attachment().copy_to(
                     aioCtx->buf, cntl.response_attachment().size());
+            }
+
+            auto latency = cntl.latency_us();
+            if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_READ) {
+                LOG(INFO) << "part1 read latency " << latency << " us";
+                readRpcLatency << latency;
+            } else if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_WRITE) {
+                LOG(INFO) << "part1 write latency " << latency << " us";
+                writeRpcLatency << latency;
             }
 
             aioCtx->ret = 0;

@@ -176,6 +176,10 @@ int CurveRequestExecutor::AioRead(
         return -1;
     }
 
+    int64_t expiredUs = aioctx->expiredTime.ExpiredUs();
+    LOG(INFO) << "part2-client read latency " << expiredUs << " us";
+    part2clientReadLatency << expiredUs;
+
     ret = client_->AioRead(curveFd,  &curveCombineCtx->curveCtx);
     if (ret !=  LIBCURVE_ERROR::OK) {
         delete curveCombineCtx;
@@ -199,6 +203,10 @@ int CurveRequestExecutor::AioWrite(
         delete curveCombineCtx;
         return -1;
     }
+
+    int64_t expiredUs = aioctx->expiredTime.ExpiredUs();
+    LOG(INFO) << "part2-client write latency " << expiredUs << " us";
+    part2clientWriteLatency << expiredUs;
 
     ret = client_->AioWrite(curveFd,  &curveCombineCtx->curveCtx);
     if (ret !=  LIBCURVE_ERROR::OK) {

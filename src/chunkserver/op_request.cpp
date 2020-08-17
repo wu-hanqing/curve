@@ -26,6 +26,7 @@
 #include <brpc/controller.h>
 #include <butil/sys_byteorder.h>
 #include <brpc/closure_guard.h>
+#include <bvar/bvar.h>
 
 #include <memory>
 #include <string>
@@ -38,13 +39,17 @@
 namespace curve {
 namespace chunkserver {
 
+bvar::LatencyRecorder csReadChunkLatency("cs_read_chunk_latency");
+bvar::LatencyRecorder csWriteChunkLatency("cs_write_chunk_latency");
+
 ChunkOpRequest::ChunkOpRequest() :
     datastore_(nullptr),
     node_(nullptr),
     cntl_(nullptr),
     request_(nullptr),
     response_(nullptr),
-    done_(nullptr) {
+    done_(nullptr),
+    startUs_(curve::common::TimeUtility::GetTimeofDayUs()) {
 }
 
 ChunkOpRequest::ChunkOpRequest(std::shared_ptr<CopysetNode> nodePtr,
@@ -57,7 +62,8 @@ ChunkOpRequest::ChunkOpRequest(std::shared_ptr<CopysetNode> nodePtr,
     cntl_(dynamic_cast<brpc::Controller *>(cntl)),
     request_(request),
     response_(response),
-    done_(done) {
+    done_(done),
+    startUs_(curve::common::TimeUtility::GetTimeofDayUs()) {
 }
 
 void ChunkOpRequest::Process() {
@@ -362,6 +368,10 @@ void ReadChunkRequest::OnApply(uint64_t index,
     auto maxIndex =
         (index > node_->GetAppliedIndex() ? index : node_->GetAppliedIndex());
     response_->set_appliedindex(maxIndex);
+
+    auto expiredUs = curve::common::TimeUtility::GetTimeofDayUs() - startUs_;
+    LOG(INFO) << "chunkserver read chunk " << expiredUs << " us";
+    csReadChunkLatency << expiredUs;
 }
 
 void ReadChunkRequest::OnApplyFromLog(std::shared_ptr<CSDataStore> datastore,
@@ -495,6 +505,10 @@ void WriteChunkRequest::OnApply(uint64_t index,
     auto maxIndex =
         (index > node_->GetAppliedIndex() ? index : node_->GetAppliedIndex());
     response_->set_appliedindex(maxIndex);
+
+    auto expiredUs = curve::common::TimeUtility::GetTimeofDayUs() - startUs_;
+    LOG(INFO) << "chunkserver write chunk " << expiredUs << " us";
+    csWriteChunkLatency << expiredUs;
 }
 
 void WriteChunkRequest::OnApplyFromLog(std::shared_ptr<CSDataStore> datastore,

@@ -24,6 +24,8 @@
 #define NEBD_SRC_PART1_NEBD_CLIENT_H_
 
 #include <brpc/channel.h>
+#include <brpc/server.h>
+#include <bvar/bvar.h>
 
 #include <functional>
 #include <string>
@@ -43,6 +45,9 @@ using RpcTask = std::function<int64_t (brpc::Controller* cntl,
                                        brpc::Channel* channel,
                                        bool* rpcFailed)>;
 using nebd::common::Configuration;
+
+extern bvar::LatencyRecorder readRpcLatency;
+extern bvar::LatencyRecorder writeRpcLatency;
 
 class NebdClient {
  public:

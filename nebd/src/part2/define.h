@@ -29,6 +29,10 @@
 #include <memory>
 #include <map>
 
+#include <bvar/bvar.h>
+
+#include "src/common/timeutility.h"
+
 #include "nebd/src/common/rw_lock.h"
 
 namespace nebd {
@@ -94,6 +98,8 @@ struct NebdServerAioContext {
     Closure *done = nullptr;
     // rpc请求的controller
     RpcController* cntl = nullptr;
+    // 请求发起时间
+    curve::common::ExpiredTime expiredTime;
 };
 
 struct NebdFileInfo {
@@ -119,6 +125,11 @@ const char METAFILEPATH[] = "meta.file.path";
 const char HEARTBEATTIMEOUTSEC[] = "heartbeat.timeout.sec";
 const char HEARTBEATCHECKINTERVALMS[] = "heartbeat.check.interval.ms";
 const char CURVECLIENTCONFPATH[] = "curveclient.confPath";
+
+extern bvar::LatencyRecorder userReadLatency;
+extern bvar::LatencyRecorder userWriteLatency;
+extern bvar::LatencyRecorder part2clientReadLatency;
+extern bvar::LatencyRecorder part2clientWriteLatency;
 
 }  // namespace server
 }  // namespace nebd
