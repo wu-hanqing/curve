@@ -37,9 +37,14 @@
 #include "src/client/request_context.h"
 #include "src/client/io_tracker.h"
 
+#include <bvar/bvar.h>
+
 // TODO(tongguangxun) :优化重试逻辑，将重试逻辑与RPC返回逻辑拆开
 namespace curve {
 namespace client {
+
+bvar::LatencyRecorder g_unstable_helper_clean_lat("unstable_helper_clean_lat");
+
 ClientClosure::BackoffParam  ClientClosure::backoffParam_;
 FailureRequestOption_t  ClientClosure::failReqOpt_;
 
@@ -221,8 +226,12 @@ void ClientClosure::Run() {
         OnRpcFailed();
     } else {
         // 只要rpc正常返回，就清空超时计数器
+
+        auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
         UnstableHelper::GetInstance().ClearTimeout(
             chunkserverID_, chunkserverEndPoint_);
+        g_unstable_helper_clean_lat
+            << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
 
         status_ = GetResponseStatus();
 

@@ -30,6 +30,8 @@
 #include <gflags/gflags.h>
 #include <bthread/bthread.h>
 #include <string>
+#include <brpc/server.h>
+#include <bvar/bvar.h>
 
 #include "nebd/src/part1/async_request_closure.h"
 #include "nebd/src/common/configuration.h"
@@ -50,6 +52,8 @@ namespace brpc {
 
 namespace nebd {
 namespace client {
+
+bvar::Adder<int64_t> nebd_part1_inprocess_io_num("nebd_part1_inprocess_io_num");
 
 using nebd::common::FileLock;
 
@@ -101,6 +105,25 @@ int NebdClient::Init(const char* confpath) {
     }
 
     heartbeatMgr_->Run();
+
+    std::once_flag startDummyOnce;
+    std::call_once(startDummyOnce, []() {
+        int startPort = 10000;
+        const int endPort = 32765;
+
+        while (startPort < endPort) {
+            int rc = brpc::StartDummyServerAt(startPort);
+            if (rc != 0) {
+                ++startPort;
+                continue;
+            } else {
+                LOG(INFO) << "Start dummy server at " << startPort;
+                return;
+            }
+        }
+
+        LOG(FATAL) << "Start dummy server failed";
+    });
 
     return 0;
 }
@@ -322,6 +345,8 @@ int NebdClient::AioRead(int fd, NebdClientAioContext* aioctx) {
 static void EmptyDeleter(void* m) {}
 
 int NebdClient::AioWrite(int fd, NebdClientAioContext* aioctx) {
+    nebd_part1_inprocess_io_num << 1;
+
     nebd::client::NebdFileService_Stub stub(&channel_);
     nebd::client::WriteRequest request;
     request.set_fd(fd);

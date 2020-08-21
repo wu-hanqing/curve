@@ -22,6 +22,7 @@
 
 #include <brpc/closure_guard.h>
 #include <brpc/controller.h>
+#include <bvar/bvar.h>
 
 #include "nebd/src/part2/file_service.h"
 
@@ -33,6 +34,8 @@ using nebd::client::RetCode;
 static void AioReadDeleter(void* m) {
     delete[] reinterpret_cast<char*>(m);
 }
+
+bvar::Adder<int64_t> g_ninprocess("nebd_inprocess_io_num");
 
 void NebdFileServiceCallback(NebdServerAioContext* context) {
     CHECK(context != nullptr);
@@ -60,6 +63,7 @@ void NebdFileServiceCallback(NebdServerAioContext* context) {
         }
         case LIBAIO_OP::LIBAIO_OP_WRITE:
         {
+            g_ninprocess << -1;
             nebd::client::WriteResponse* response =
                 dynamic_cast<nebd::client::WriteResponse*>(context->response);
             if (context->ret < 0) {
@@ -132,6 +136,8 @@ void NebdFileServiceImpl::Write(
     google::protobuf::Closure* done) {
     brpc::ClosureGuard doneGuard(done);
     response->set_retcode(RetCode::kNoOK);
+
+    g_ninprocess << 1;
 
     NebdServerAioContext* aioContext
         = new (std::nothrow) NebdServerAioContext();

@@ -92,14 +92,20 @@ uint64_t RequestClosure::GetStartTime() {
 
 void RequestClosure::GetInflightRPCToken() {
     if (ioManager_ != nullptr) {
+        auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
         ioManager_->GetInflightRpcToken();
+        metric_->getInflightTokenLatency
+            << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
         MetricHelper::IncremInflightRPC(metric_);
     }
 }
 
 void RequestClosure::ReleaseInflightRPCToken() {
     if (ioManager_ != nullptr) {
+        auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
         ioManager_->ReleaseInflightRpcToken();
+        metric_->releaseInflightTokenLatency
+            << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
         MetricHelper::DecremInflightRPC(metric_);
     }
 }

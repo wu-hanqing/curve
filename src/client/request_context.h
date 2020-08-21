@@ -95,6 +95,8 @@ class RequestContext {
 
     // request context id生成器
     static std::atomic<uint64_t> reqCtxID_;
+
+    uint64_t splitedUs_;
 };
 
 inline std::ostream& operator<<(std::ostream& os,

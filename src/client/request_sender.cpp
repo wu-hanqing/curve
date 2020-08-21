@@ -30,10 +30,15 @@
 #include "src/client/request_closure.h"
 #include "src/common/location_operator.h"
 
+#include <bvar/bvar.h>
+
 using curve::common::TimeUtility;
 
 namespace curve {
 namespace client {
+
+bvar::LatencyRecorder stub_write_call_lat("stub_write_call_lat");
+bvar::LatencyRecorder stub_read_call_lat("stub_read_call_lat");
 
 static void EmptyDeleter(void* ptr) {}
 
@@ -88,8 +93,14 @@ int RequestSender::ReadChunk(ChunkIDInfo idinfo,
     if (iosenderopt_.chunkserverEnableAppliedIndexRead && appliedindex > 0) {
         request.set_appliedindex(appliedindex);
     }
+
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+
     ChunkService_Stub stub(&channel_);
     stub.ReadChunk(cntl, &request, response, doneGuard.release());
+
+    stub_read_call_lat << (curve::common::TimeUtility::GetTimeofDayUs() -
+                           startUs);
 
     return 0;
 }
@@ -135,8 +146,14 @@ int RequestSender::WriteChunk(ChunkIDInfo idinfo,
 
     cntl->request_attachment().append_user_data(
         const_cast<char*>(buf), length, EmptyDeleter);
+
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+
     ChunkService_Stub stub(&channel_);
     stub.WriteChunk(cntl, &request, response, doneGuard.release());
+
+    stub_write_call_lat << (curve::common::TimeUtility::GetTimeofDayUs() -
+                            startUs);
 
     return 0;
 }

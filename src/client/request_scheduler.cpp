@@ -29,6 +29,8 @@
 #include "src/client/request_closure.h"
 #include "src/client/chunk_closure.h"
 
+#include <bvar/bvar.h>
+
 namespace curve {
 namespace client {
 
@@ -57,6 +59,8 @@ int RequestScheduler::Init(const RequestScheduleOption_t& reqSchdulerOpt,
     if (0 != rc) {
         return -1;
     }
+
+    fileMetric_ = fm;
 
     LOG(INFO) << "RequestScheduler conf info: "
               << "scheduleQueueCapacity = "
@@ -90,10 +94,24 @@ int RequestScheduler::Fini() {
 int RequestScheduler::ScheduleRequest(const std::list<RequestContext *> requests) {   //NOLINT
     if (running_.load(std::memory_order_acquire)) {
         /* TODO(wudemiao): 后期考虑 qos */
+
+        auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+
         for (auto it : requests) {
             BBQItem<RequestContext *> req(it);
             queue_.PutBack(req);
+            if (fileMetric_) {
+                fileMetric_->subioPutLatency
+                    << (curve::common::TimeUtility::GetTimeofDayUs() -
+                        it->splitedUs_);
+            }
         }
+
+        if (fileMetric_) {
+            fileMetric_->putScheduleLatency << (
+                curve::common::TimeUtility::GetTimeofDayUs() - startUs);
+        }
+
         return 0;
     }
     return -1;
@@ -136,6 +154,9 @@ void RequestScheduler::Process() {
     while ((running_.load(std::memory_order_acquire)
         || !queue_.Empty())  // flush all request in the queue
         && !stop_.load(std::memory_order_acquire)) {
+
+        auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+
         WaitValidSession();
         BBQItem<RequestContext *> item = queue_.TakeFront();
         if (!item.IsStop()) {
@@ -160,7 +181,16 @@ void RequestScheduler::Process() {
                     DVLOG(9) << "Processing write request, buf header: "
                              << " buf: " << *(unsigned int*)req->writeBuffer_;
                     {
+                        if (fileMetric_) {
+                            fileMetric_->subioTakeLatency
+                                << (curve::common::TimeUtility::
+                                        GetTimeofDayUs() -
+                                    req->splitedUs_);
+                        }
                         req->done_->GetInflightRPCToken();
+
+                        auto startUs =
+                            curve::common::TimeUtility::GetTimeofDayUs();
                         client_.WriteChunk(req->idinfo_,
                                         req->seq_,
                                         req->writeBuffer_,
@@ -168,6 +198,12 @@ void RequestScheduler::Process() {
                                         req->rawlength_,
                                         req->sourceInfo_,
                                         guard.release());
+                        if (fileMetric_) {
+                            fileMetric_->copysetWriteChunkLatency
+                                << (curve::common::TimeUtility::
+                                        GetTimeofDayUs() -
+                                    startUs);
+                        }
                     }
                     break;
                 case OpType::READ_SNAP:
@@ -204,6 +240,12 @@ void RequestScheduler::Process() {
                     req->done_->SetFailed(-1);
                     LOG(ERROR) << "unknown op type: OpType::UNKNOWN";
             }
+
+            if (fileMetric_) {
+                fileMetric_->scheduleLoopLatency << (
+                    curve::common::TimeUtility::GetTimeofDayUs() - startUs);
+            }
+
         } else {
             /**
              * 一旦遇到stop item，所有线程都可以退出，因为此时
