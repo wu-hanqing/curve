@@ -30,6 +30,7 @@
 #include "src/client/client_common.h"
 #include "src/client/config_info.h"
 #include "src/common/uncopyable.h"
+#include "src/common/concurrent/rw_lock.h"
 
 namespace curve {
 namespace client {
@@ -44,7 +45,7 @@ class RequestSender;
 class RequestSenderManager : public Uncopyable {
  public:
     using SenderPtr = std::shared_ptr<RequestSender>;
-    RequestSenderManager() : lock_(), senderPool_() {}
+    RequestSenderManager() : rwlock_(), senderPool_() {}
 
     /**
      * 获取指定leader id的sender，如果没有则根据leader
@@ -65,7 +66,8 @@ class RequestSenderManager : public Uncopyable {
 
  private:
     // 互斥锁，保护senderPool_
-    mutable std::mutex lock_;
+    // mutable std::mutex lock_;
+    curve::common::BthreadRWLock rwlock_;
     // 请求发送链接的map，以ChunkServer ID为key
     std::unordered_map<ChunkServerID, SenderPtr> senderPool_;
 };

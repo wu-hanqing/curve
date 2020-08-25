@@ -107,7 +107,7 @@ typedef struct LeaseOption {
  *     整个server上的所有chunkserver都标记为unstable
  */
 struct ChunkServerUnstableOption {
-    uint32_t maxStableChunkServerTimeoutTimes{64};
+    uint32_t maxStableChunkServerTimeoutTimes{10};
     uint32_t checkHealthTimeoutMS{100};
     uint32_t serverUnstableThreshold{3};
 };

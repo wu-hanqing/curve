@@ -167,7 +167,16 @@ void RequestScheduler::Process() {
                     DVLOG(9) << "Processing read request, buf header: "
                              << " buf: " << *(unsigned int*)req->readBuffer_;
                     {
+                        if (fileMetric_) {
+                            fileMetric_->subioTakeLatency
+                                << (curve::common::TimeUtility::
+                                        GetTimeofDayUs() -
+                                    req->splitedUs_);
+                        }
                         req->done_->GetInflightRPCToken();
+
+                        auto startUs =
+                            curve::common::TimeUtility::GetTimeofDayUs();
                         client_.ReadChunk(req->idinfo_,
                                         req->seq_,
                                         req->offset_,
@@ -175,6 +184,12 @@ void RequestScheduler::Process() {
                                         req->appliedindex_,
                                         req->sourceInfo_,
                                         guard.release());
+                        if (fileMetric_) {
+                            fileMetric_->copysetReadChunkLatency
+                                << (curve::common::TimeUtility::
+                                        GetTimeofDayUs() -
+                                    startUs);
+                        }
                     }
                     break;
                 case OpType::WRITE:

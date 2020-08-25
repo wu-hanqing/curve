@@ -25,6 +25,8 @@
 namespace curve {
 namespace common {
 
+bvar::Adder<int64_t> taskNum("task_thread_pool_task_num");
+
 TaskThreadPool::TaskThreadPool()
     : mutex_(),
       notEmpty_(),
@@ -94,6 +96,7 @@ TaskThreadPool::Task TaskThreadPool::Take() {
     if (!queue_.empty()) {
         task = queue_.front();
         queue_.pop_front();
+        taskNum << -1;
         notFull_.notify_one();
     }
     return task;

@@ -44,50 +44,10 @@ namespace curve {
 namespace client {
 
 bvar::LatencyRecorder g_unstable_helper_clean_lat("unstable_helper_clean_lat");
+bvar::LatencyRecorder g_closure_run_lat("closure_run_lat");
 
 ClientClosure::BackoffParam  ClientClosure::backoffParam_;
 FailureRequestOption_t  ClientClosure::failReqOpt_;
-
-UnstableState UnstableHelper::GetCurrentUnstableState(
-    ChunkServerID csId,
-    const butil::EndPoint& csEndPoint) {
-
-    std::string ip = butil::ip2str(csEndPoint.ip).c_str();
-
-    lock_.Lock();
-    // 如果当前ip已经超过阈值，则直接返回chunkserver unstable
-    int unstabled = serverUnstabledChunkservers_[ip].size();
-    if (unstabled >= option_.serverUnstableThreshold) {
-        serverUnstabledChunkservers_[ip].emplace(csId);
-        lock_.UnLock();
-        return UnstableState::ChunkServerUnstable;
-    }
-
-    bool exceed =
-        timeoutTimes_[csId] > option_.maxStableChunkServerTimeoutTimes;
-    lock_.UnLock();
-
-    if (exceed == false) {
-        return UnstableState::NoUnstable;
-    }
-
-    bool health = CheckChunkServerHealth(csEndPoint);
-    if (health) {
-        ClearTimeout(csId, csEndPoint);
-        return UnstableState::NoUnstable;
-    }
-
-    lock_.Lock();
-    auto ret = serverUnstabledChunkservers_[ip].emplace(csId);
-    unstabled = serverUnstabledChunkservers_[ip].size();
-    lock_.UnLock();
-
-    if (ret.second && unstabled == option_.serverUnstableThreshold) {
-        return UnstableState::ServerUnstable;
-    } else {
-        return UnstableState::ChunkServerUnstable;
-    }
-}
 
 void ClientClosure::PreProcessBeforeRetry(int rpcstatus, int cntlstatus) {
     RequestClosure *reqDone = dynamic_cast<RequestClosure *>(done_);
@@ -206,6 +166,7 @@ uint64_t ClientClosure::TimeoutBackOff(uint64_t currentRetryTimes) {
 // 针对不同的请求类型和返回状态码，进行相应的处理
 // 各子类需要实现SendRetryRequest，进行重试请求
 void ClientClosure::Run() {
+    curve::common::ExpiredTime calcTime;
     std::unique_ptr<ClientClosure> selfGuard(this);
     std::unique_ptr<brpc::Controller> cntlGuard(cntl_);
     brpc::ClosureGuard doneGuard(done_);
@@ -225,10 +186,12 @@ void ClientClosure::Run() {
         needRetry = true;
         OnRpcFailed();
     } else {
+        fileMetric_->rpcControllerLatency << cntl_->latency_us();
+
         // 只要rpc正常返回，就清空超时计数器
 
         auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
-        UnstableHelper::GetInstance().ClearTimeout(
+        metaCache_->GetUnstableHelper()->ClearTimeout(
             chunkserverID_, chunkserverEndPoint_);
         g_unstable_helper_clean_lat
             << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
@@ -304,6 +267,11 @@ void ClientClosure::Run() {
         doneGuard.release();
         OnRetry();
     }
+
+    // g_closure_run_lat << (
+    //     static_cast<int64_t>(calcTime.ExpiredUs()));
+    fileMetric_->closureRunLatency << (
+        static_cast<int64_t>(calcTime.ExpiredUs()));
 }
 
 void ClientClosure::OnRpcFailed() {
@@ -314,7 +282,7 @@ void ClientClosure::OnRpcFailed() {
     // 如果连接失败，再等一定时间再重试
     if (cntlstatus_ == brpc::ERPCTIMEDOUT) {
         // 如果RPC超时, 对应的chunkserver超时请求次数+1
-        UnstableHelper::GetInstance().IncreTimeout(chunkserverID_);
+        metaCache_->GetUnstableHelper()->IncreTimeout(chunkserverID_);
         MetricHelper::IncremTimeOutRPCCount(fileMetric_, reqCtx_->optype_);
     }
 
@@ -338,8 +306,9 @@ void ClientClosure::OnRpcFailed() {
 }
 
 void ClientClosure::ProcessUnstableState() {
-    UnstableState state = UnstableHelper::GetInstance().GetCurrentUnstableState(
-        chunkserverID_, chunkserverEndPoint_);
+    UnstableState state =
+        metaCache_->GetUnstableHelper()->GetCurrentUnstableState(
+            chunkserverID_, chunkserverEndPoint_);
 
     switch (state) {
     case UnstableState::ServerUnstable: {
@@ -540,9 +509,12 @@ void ReadChunkClosure::SendRetryRequest() {
 void ReadChunkClosure::OnSuccess() {
     ClientClosure::OnSuccess();
 
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
     cntl_->response_attachment().copy_to(
         reqCtx_->readBuffer_,
         cntl_->response_attachment().size());
+    fileMetric_->copyReadDataLatency << (
+        curve::common::TimeUtility::GetTimeofDayUs() - startUs);
 
     metaCache_->UpdateAppliedIndex(
         reqCtx_->idinfo_.lpid_,
@@ -554,7 +526,12 @@ void ReadChunkClosure::OnChunkNotExist() {
     ClientClosure::OnChunkNotExist();
 
     reqDone_->SetFailed(0);
+
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
     memset(reqCtx_->readBuffer_, 0, reqCtx_->rawlength_);
+    fileMetric_->setReadDataLatency << (
+        curve::common::TimeUtility::GetTimeofDayUs() - startUs);
+
     metaCache_->UpdateAppliedIndex(chunkIdInfo_.lpid_, chunkIdInfo_.cpid_,
                                    response_->appliedindex());
 }

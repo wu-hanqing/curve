@@ -30,33 +30,57 @@ namespace curve {
 namespace client {
 
 RequestSenderManager::SenderPtr RequestSenderManager::GetOrCreateSender(
-                                            const ChunkServerID &leaderId,
-                                            const butil::EndPoint &leaderAddr,
-                                            IOSenderOption_t senderopt) {
-    std::shared_ptr<RequestSender> senderPtr = nullptr;
+    const ChunkServerID& leaderId,
+    const butil::EndPoint& leaderAddr,
+    IOSenderOption_t senderopt) {
+    std::shared_ptr<RequestSender> senderPtr;
 
-    std::lock_guard<std::mutex> guard(lock_);
-    auto leaderIter = senderPool_.find(leaderId);
-    if (senderPool_.end() != leaderIter) {
-        return leaderIter->second;
-    } else {
-        // 不存在则创建
-        senderPtr = std::make_shared<RequestSender>(leaderId, leaderAddr);
-        CHECK(nullptr != senderPtr) << "new RequestSender failed";
+    // std::lock_guard<std::mutex> guard(lock_);
+    // auto leaderIter = senderPool_.find(leaderId);
+    // if (senderPool_.end() != leaderIter) {
+    //     return leaderIter->second;
+    // } else {
+    //     // 不存在则创建
+    //     senderPtr = std::make_shared<RequestSender>(leaderId, leaderAddr);
+    //     CHECK(nullptr != senderPtr) << "new RequestSender failed";
 
-        int rc = senderPtr->Init(senderopt);
-        if (0 != rc) {
-            return nullptr;
+    //     int rc = senderPtr->Init(senderopt);
+    //     if (0 != rc) {
+    //         return nullptr;
+    //     }
+
+    //     senderPool_.insert(
+    //         std::pair<ChunkServerID, SenderPtr>(leaderId, senderPtr));
+    // }
+
+    {
+        curve::common::ReadLockGuard rdlock(rwlock_);
+        auto iter = senderPool_.find(leaderId);
+        if (iter != senderPool_.end()) {
+            return iter->second;
         }
-
-        senderPool_.insert(std::pair<ChunkServerID, SenderPtr>(leaderId,
-                                                               senderPtr));
     }
+
+    // now create a request sender
+    senderPtr = std::make_shared<RequestSender>(leaderId, leaderAddr);
+    if (senderPtr == nullptr) {
+        LOG(ERROR) << "new request sender failed";
+        return nullptr;
+    }
+
+    int rc = senderPtr->Init(senderopt);
+    if (rc != 0) {
+        return nullptr;
+    }
+
+    senderPool_.emplace(leaderId, senderPtr);
+
     return senderPtr;
 }
 
 void RequestSenderManager::ResetSenderIfNotHealth(const ChunkServerID& csId) {
-    std::lock_guard<std::mutex> guard(lock_);
+    // std::lock_guard<std::mutex> guard(lock_);
+    curve::common::WriteLockGuard wrlock(rwlock_);
     auto iter = senderPool_.find(csId);
 
     if (iter == senderPool_.end()) {
@@ -71,5 +95,5 @@ void RequestSenderManager::ResetSenderIfNotHealth(const ChunkServerID& csId) {
     senderPool_.erase(iter);
 }
 
-}   // namespace client
-}   // namespace curve
+}  // namespace client
+}  // namespace curve

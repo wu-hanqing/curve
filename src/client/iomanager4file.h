@@ -38,6 +38,9 @@
 #include "include/curve_compiler_specific.h"
 #include "src/client/inflight_controller.h"
 
+#include <bthread/execution_queue.h>
+#include <functional>
+
 using curve::common::Atomic;
 
 namespace curve {
@@ -45,6 +48,8 @@ namespace client {
 class FlightIOGuard;
 class IOManager4File : public IOManager {
  public:
+    using AioTask = std::function<void ()>;
+
   IOManager4File();
   ~IOManager4File() = default;
 
@@ -206,6 +211,8 @@ class IOManager4File : public IOManager {
   };
 
  private:
+    static int RunAioTask(void* meta, bthread::TaskIterator<AioTask>& iter);
+
   // 每个IOManager都有其IO配置，保存在iooption里
   IOOption_t  ioopt_;
 
@@ -240,6 +247,8 @@ class IOManager4File : public IOManager {
   // 不会有并发的情况，保证在资源被析构的时候lease续约
   // 线程不会再用到这些资源.
   std::mutex exitMtx_;
+
+    bthread::ExecutionQueueId<AioTask> aio_task_queue_id_;
 };
 
 }   // namespace client

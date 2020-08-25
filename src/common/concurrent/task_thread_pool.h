@@ -37,8 +37,12 @@
 
 #include "src/common/uncopyable.h"
 
+#include <bvar/bvar.h>
+
 namespace curve {
 namespace common {
+
+extern bvar::Adder<int64_t> taskNum;
 
 // 异步运行回调的线程池
 class TaskThreadPool : public Uncopyable {
@@ -105,6 +109,7 @@ void TaskThreadPool::Enqueue(F &&f, Args &&... args) {
     }
     auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
     queue_.push_back(std::move(task));
+    taskNum << 1;
     notEmpty_.notify_one();
 }
 

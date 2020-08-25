@@ -54,82 +54,7 @@ class RequestSenderManager;
 class MetaCache;
 class CopysetClient;
 
-enum class UnstableState {
-    NoUnstable,
-    ChunkServerUnstable,
-    ServerUnstable
-};
 
-// 如果chunkserver宕机或者网络不可达, 发往对应chunkserver的rpc会超时
-// 返回之后, 回去refresh leader然后再去发送请求
-// 这种情况下不同copyset上的请求，总会先rpc timedout然后重新refresh leader
-// 为了避免一次多余的rpc timedout
-// 记录一下发往同一个chunkserver上超时请求的次数
-// 如果超过一定的阈值，会发送http请求检查chunkserver是否健康
-// 如果不健康，则通知所有leader在这台chunkserver上的copyset
-// 主动去refresh leader，而不是根据缓存的leader信息直接发送rpc
-class UnstableHelper {
- public:
-    static UnstableHelper& GetInstance() {
-        static UnstableHelper helper;
-        return helper;
-    }
-
-    void IncreTimeout(ChunkServerID csId) {
-        lock_.Lock();
-        ++timeoutTimes_[csId];
-        lock_.UnLock();
-    }
-
-    UnstableState GetCurrentUnstableState(
-        ChunkServerID csId,
-        const butil::EndPoint& csEndPoint);
-
-    void ClearTimeout(ChunkServerID csId,
-                      const butil::EndPoint& csEndPoint) {
-        std::string ip = butil::ip2str(csEndPoint.ip).c_str();
-
-        lock_.Lock();
-        timeoutTimes_[csId] = 0;
-        serverUnstabledChunkservers_[ip].erase(csId);
-        lock_.UnLock();
-    }
-
-    void SetUnstableChunkServerOption(
-        const ChunkServerUnstableOption& opt) {
-        option_ = opt;
-    }
-
-    // 测试使用，重置计数器
-    void ResetState() {
-        timeoutTimes_.clear();
-        serverUnstabledChunkservers_.clear();
-    }
-
- private:
-    UnstableHelper() = default;
-
-    /**
-     * @brief 检查chunkserver状态
-     *
-     * @param: endPoint chunkserver的ip:port地址
-     * @return: true 健康 / false 不健康
-     */
-    bool CheckChunkServerHealth(const butil::EndPoint& endPoint) {
-        return ServiceHelper::CheckChunkServerHealth(
-            endPoint, option_.checkHealthTimeoutMS) == 0;
-    }
-
-    ChunkServerUnstableOption option_;
-
-    SpinLock lock_;
-
-    // 同一chunkserver连续超时请求次数
-    std::unordered_map<ChunkServerID, uint32_t> timeoutTimes_;
-
-    // 同一server上unstable chunkserver的id
-    std::unordered_map<std::string, std::unordered_set<ChunkServerID>> serverUnstabledChunkservers_;  // NOLINT
-};
 
 /**
  * ClientClosure，负责保存Rpc上下文，
@@ -208,8 +133,8 @@ class ClientClosure : public Closure {
             const FailureRequestOption_t& failRequestOpt) {
         failReqOpt_ = failRequestOpt;
 
-        UnstableHelper::GetInstance().SetUnstableChunkServerOption(
-            failReqOpt_.chunkserverUnstableOption);
+        // UnstableHelper::GetInstance().SetUnstableChunkServerOption(
+        //     failReqOpt_.chunkserverUnstableOption);
 
         std::srand(std::time(nullptr));
         SetBackoffParam();

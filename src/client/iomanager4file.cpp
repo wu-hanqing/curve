@@ -31,6 +31,9 @@
 #include "src/client/io_tracker.h"
 #include "src/client/splitor.h"
 
+#include <bvar/bvar.h>
+#include <bthread/execution_queue.h>
+
 namespace curve {
 namespace client {
 Atomic<uint64_t> IOManager::idRecorder_(1);
@@ -84,6 +87,15 @@ bool IOManager4File::Initialize(const std::string& filename,
               << ioopt_.taskThreadOpt.isolationTaskThreadPoolSize
               << ", isolationTaskQueueCapacity = "
               << ioopt_.taskThreadOpt.isolationTaskQueueCapacity;
+
+    int rc = bthread::execution_queue_start(
+        &aio_task_queue_id_, nullptr, &IOManager4File::RunAioTask, this);
+
+    if (rc != 0) {
+        LOG(FATAL) << "init aio task queue failed";
+        _exit(0);
+    }
+
     return true;
 }
 
@@ -170,8 +182,26 @@ int IOManager4File::AioRead(CurveAioContext* ctx, MDSClient* mdsclient) {
                         this->GetFileInfo());
     };
 
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
     taskPool_.Enqueue(task);
+    fileMetric_->enqueueLatency
+        << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
+
     return LIBCURVE_ERROR::OK;
+}
+
+int IOManager4File::RunAioTask(void* meta,
+                               bthread::TaskIterator<AioTask>& iter) {
+    if (iter.is_queue_stopped()) {
+        return 0;
+    }
+
+    for (; iter; ++iter) {
+        auto& task = *iter;
+        task();
+    }
+
+    return 0;
 }
 
 int IOManager4File::AioWrite(CurveAioContext* ctx, MDSClient* mdsclient) {
@@ -194,7 +224,19 @@ int IOManager4File::AioWrite(CurveAioContext* ctx, MDSClient* mdsclient) {
                          this->GetFileInfo());
     };
 
-    taskPool_.Enqueue(task);
+
+    auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+    // taskPool_.Enqueue(task);
+
+    int rc = bthread::execution_queue_execute(aio_task_queue_id_, task);
+    if (rc != 0) {
+        LOG(FATAL) << "push task failed";
+        _exit(0);
+    }
+
+    fileMetric_->enqueueLatency
+        << (curve::common::TimeUtility::GetTimeofDayUs() - startUs);
+
     return LIBCURVE_ERROR::OK;
 }
 

@@ -34,6 +34,8 @@
 #include "include/curve_compiler_specific.h"
 #include "src/client/request_context.h"
 
+#include <bthread/execution_queue.h>
+
 namespace curve {
 namespace client {
 
@@ -50,6 +52,8 @@ using ::google::protobuf::Closure;
  */
 class RequestSender {
  public:
+    using RpcTask = std::function<void ()>;
+
     RequestSender(ChunkServerID chunkServerId,
                   butil::EndPoint serverEndPoint)
         : chunkServerId_(chunkServerId),
@@ -178,6 +182,16 @@ class RequestSender {
        return channel_.CheckHealth() == 0;
     }
 
+    brpc::Channel& GetChannel() {
+       return channel_;
+    }
+
+    const brpc::Channel& GetChannel() const {
+       return channel_;
+    }
+
+    static int SendWriteRpc(void* meta, bthread::TaskIterator<RpcTask>& iter);
+
  private:
     // Rpc stub配置
     IOSenderOption_t iosenderopt_;
@@ -186,6 +200,8 @@ class RequestSender {
     // ChunkServer 的地址
     butil::EndPoint serverEndPoint_;
     brpc::Channel channel_; /* TODO(wudemiao): 后期会维护多个 channel */
+
+    bthread::ExecutionQueueId<RpcTask> write_rpc_queue_id_;
 };
 
 }   // namespace client

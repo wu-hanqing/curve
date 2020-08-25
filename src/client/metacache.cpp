@@ -51,6 +51,8 @@ void MetaCache::Init(MetaCacheOption_t metaCacheOpt, MDSClient* mdsclient) {
               << metacacheopt_.metacacheRPCRetryIntervalUS
               << ", get leader rpc time out ms = "
               << metacacheopt_.metacacheGetLeaderRPCTimeOutMS;
+
+    unstableHelper_ = std::make_shared<UnstableHelper>();
 }
 
 MetaCacheErrorType MetaCache::GetChunkInfoByIndex(ChunkIndex chunkidx, ChunkIDInfo_t* chunxinfo ) {  // NOLINT
@@ -269,14 +271,21 @@ void MetaCache::UpdateCopysetInfo(LogicPoolID logicPoolid, CopysetID copysetid,
 }
 
 void MetaCache::UpdateAppliedIndex(LogicPoolID logicPoolId,
-    CopysetID copysetId, uint64_t appliedindex) {
+                                   CopysetID copysetId,
+                                   uint64_t appliedindex) {
     std::string mapkey = LogicPoolCopysetID2Str(logicPoolId, copysetId);
 
-    WriteLockGuard wrlk(rwlock4CopysetInfo_);
-    auto iter = lpcsid2CopsetInfoMap_.find(mapkey);
-    if (iter == lpcsid2CopsetInfoMap_.end()) {
-        return;
+    CopysetInfoMap::iterator iter;
+
+    {
+        WriteLockGuard wrlk(rwlock4CopysetInfo_);
+        iter = lpcsid2CopsetInfoMap_.find(mapkey);
+        if (iter == lpcsid2CopsetInfoMap_.end()) {
+            return;
+        }
     }
+
+    // move out lock
     iter->second.UpdateAppliedIndex(appliedindex);
 }
 
@@ -290,6 +299,7 @@ uint64_t MetaCache::GetAppliedIndex(LogicPoolID logicPoolId,
         return 0;
     }
 
+    // move out lock
     return iter->second.GetAppliedIndex();
 }
 
@@ -417,5 +427,53 @@ std::string MetaCache::LogicPoolCopysetID2Str(LogicPoolID lpid,
     CopysetID csid) {
     return std::to_string(lpid).append("_").append(std::to_string(csid));
 }
+
+UnstableState UnstableHelper::GetCurrentUnstableState(
+    ChunkServerID csId,
+    const butil::EndPoint& csEndPoint) {
+
+    std::string ip = butil::ip2str(csEndPoint.ip).c_str();
+
+    // lock_.Lock();
+    mtx.lock();
+    // 如果当前ip已经超过阈值，则直接返回chunkserver unstable
+    int unstabled = serverUnstabledChunkservers_[ip].size();
+    if (unstabled >= option_.serverUnstableThreshold) {
+        serverUnstabledChunkservers_[ip].emplace(csId);
+        // lock_.UnLock();
+        mtx.unlock();
+        return UnstableState::ChunkServerUnstable;
+    }
+
+    bool exceed =
+        timeoutTimes_[csId] > option_.maxStableChunkServerTimeoutTimes;
+    // lock_.UnLock();
+    mtx.unlock();
+
+    if (exceed == false) {
+        return UnstableState::NoUnstable;
+    }
+
+    bool health = CheckChunkServerHealth(csEndPoint);
+    if (health) {
+        ClearTimeout(csId, csEndPoint);
+        return UnstableState::NoUnstable;
+    }
+
+    // lock_.Lock();
+    mtx.lock();
+    auto ret = serverUnstabledChunkservers_[ip].emplace(csId);
+    unstabled = serverUnstabledChunkservers_[ip].size();
+    // lock_.UnLock();
+    mtx.unlock();
+
+    if (ret.second && unstabled == option_.serverUnstableThreshold) {
+        return UnstableState::ServerUnstable;
+    } else {
+        return UnstableState::ChunkServerUnstable;
+    }
+}
+
+
 }   // namespace client
 }   // namespace curve

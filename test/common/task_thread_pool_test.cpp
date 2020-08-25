@@ -28,6 +28,10 @@
 #include "src/common/concurrent/count_down_event.h"
 #include "src/common/concurrent/task_thread_pool.h"
 
+#include "src/common/timeutility.h"
+
+#include <bvar/bvar.h>
+
 namespace curve {
 namespace common {
 
@@ -263,6 +267,48 @@ TEST(TaskThreadPool, basic) {
 
         taskThreadPool.Stop();
     }
+}
+
+bvar::LatencyRecorder lat("latency");
+std::atomic<uint64_t> count(1);
+
+TEST(TaskThreadPool, PerformanceTest) {
+    // 两个线程
+
+    // 一个push
+    TaskThreadPool taskThreadPool;
+    taskThreadPool.Start(1, 10000000);
+
+    std::atomic<bool> running(true);
+
+    auto calcLatency = [](int64_t startUs) {
+        auto elpased = curve::common::TimeUtility::GetTimeofDayUs() - startUs;
+        // std::cout << elpased << std::endl;
+        lat << elpased;
+        if (count.fetch_add(1, std::memory_order_relaxed) % 1000 == 0) {
+            std::cout << "avg lat: " << lat.latency()
+                      << ", 80%: " << lat.latency_percentile(0.8)
+                      << ", 90%: " << lat.latency_percentile(0.9)
+                      << ", 99%: " << lat.latency_percentile(0.99)
+                      << std::endl;
+        }
+    };
+
+    auto push_func = [&taskThreadPool, &running, &calcLatency]() {
+        while (running.load(std::memory_order_relaxed)) {
+            auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+            taskThreadPool.Enqueue(calcLatency, startUs);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    };
+
+    std::vector<std::thread> ths;
+
+    for (int i = 0; i < 56; ++i) {
+        ths.emplace_back(push_func);
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(120));
 }
 
 }  // namespace common

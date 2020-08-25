@@ -29,6 +29,7 @@
 #include "src/common/timeutility.h"
 #include "src/client/request_closure.h"
 #include "src/common/location_operator.h"
+#include <bthread/execution_queue.h>
 
 #include <bvar/bvar.h>
 
@@ -43,13 +44,20 @@ bvar::LatencyRecorder stub_read_call_lat("stub_read_call_lat");
 static void EmptyDeleter(void* ptr) {}
 
 int RequestSender::Init(const IOSenderOption_t& ioSenderOpt) {
-    if (0 != channel_.Init(serverEndPoint_, NULL)) {
+    if (0 != channel_.Init(serverEndPoint_, nullptr)) {
         LOG(ERROR) << "failed to init channel to server, id: " << chunkServerId_
                    << ", "<< serverEndPoint_.ip << ":" << serverEndPoint_.port;
         return -1;
     }
     iosenderopt_ = ioSenderOpt;
     ClientClosure::SetFailureRequestOption(iosenderopt_.failRequestOpt);
+
+    int rc = bthread::execution_queue_start(&write_rpc_queue_id_,
+        nullptr, &RequestSender::SendWriteRpc, this);
+
+    if (rc != 0) {
+        return -1;
+    }
 
     return 0;
 }
@@ -105,6 +113,27 @@ int RequestSender::ReadChunk(ChunkIDInfo idinfo,
     return 0;
 }
 
+int RequestSender::SendWriteRpc(void* meta, bthread::TaskIterator<RpcTask>& iter) {
+    if (iter.is_queue_stopped()) {
+        return 0;
+    }
+
+    // auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
+    // int count = 0;
+    // for (; iter; iter++) {
+    //     ++count;
+
+    //     auto& t = *iter;
+    //     t();
+    // }
+
+    // stub_write_call_lat << ((curve::common::TimeUtility::GetTimeofDayUs() -
+    //                          startUs) /
+    //                         count);
+
+    return 0;
+}
+
 int RequestSender::WriteChunk(ChunkIDInfo idinfo,
                               uint64_t sn,
                               const char *buf,
@@ -149,8 +178,17 @@ int RequestSender::WriteChunk(ChunkIDInfo idinfo,
 
     auto startUs = curve::common::TimeUtility::GetTimeofDayUs();
 
+    // doneGuard.release();
+    // RpcTask task = [this, cntl, request, response, done]() {
     ChunkService_Stub stub(&channel_);
     stub.WriteChunk(cntl, &request, response, doneGuard.release());
+    // };
+
+    // int ret = bthread::execution_queue_execute(write_rpc_queue_id_, task);
+    // if (ret != 0) {
+        // LOG(FATAL) << "push failed, " << errno;
+        // _exit(0);
+    // }
 
     stub_write_call_lat << (curve::common::TimeUtility::GetTimeofDayUs() -
                             startUs);
