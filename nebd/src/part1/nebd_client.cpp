@@ -30,6 +30,7 @@
 #include <gflags/gflags.h>
 #include <bthread/bthread.h>
 #include <string>
+#include <brpc/server.h>
 
 #include "nebd/src/part1/async_request_closure.h"
 #include "nebd/src/common/configuration.h"
@@ -111,6 +112,20 @@ int NebdClient::Init(const char* confpath) {
             LOG(ERROR) << "Init AsyncRpcQueues failed";
             return -1;
         }
+    }
+
+    // start dummy server
+    int start_port = 30000;
+    const int end_port = 35000;
+    while (start_port <= end_port) {
+        int rc = brpc::StartDummyServerAt(20001);
+        if (rc != 0) {
+            start_port++;
+        }
+    }
+
+    if (start_port > end_port) {
+        LOG(FATAL) << "Start Dummy Server failed";
     }
 
     return 0;

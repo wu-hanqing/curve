@@ -48,6 +48,8 @@ void AsyncRequestClosure::Run() {
         bthread_usleep(sleepUs);
         Retry();
     } else {
+        static bvar::LatencyRecorder write_latency("write_rpc_lat");
+
         auto retCode = GetResponseRetCode();
         if (nebd::client::RetCode::kOK == retCode) {
             DVLOG(6) << OpTypeToString(aioCtx->op) << " success, fd = " << fd;
@@ -56,6 +58,8 @@ void AsyncRequestClosure::Run() {
             if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_READ) {
                 cntl.response_attachment().copy_to(
                     aioCtx->buf, cntl.response_attachment().size());
+            } else if (aioCtx->op == LIBAIO_OP::LIBAIO_OP_WRITE) {
+                write_latency << cntl.latency_us();
             }
 
             aioCtx->ret = 0;
