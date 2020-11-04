@@ -68,6 +68,10 @@ class NBDTool {
     // 生成image instance
     ImagePtr GenerateImage(const std::string& imageName);
 
+    // wait curve-nbd process to exit
+    int WaitForTerminate(const std::string& devpath, pid_t pid,
+                         uint64_t totalRetryMs);
+
  private:
     class NBDSocketPair {
      public:
