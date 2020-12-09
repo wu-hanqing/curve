@@ -73,6 +73,7 @@ DEFINE_bool(enableWalfilepool, true, "enable WAL filepool");
 DEFINE_string(walFilePoolDir, "./0/", "WAL filepool location");
 DEFINE_string(walFilePoolMetaPath, "./walfilepool.meta",
                                     "WAL filepool meta path");
+DEFINE_int32(bthreadWorkerCount, 18, "total bthread worker count");
 
 namespace curve {
 namespace chunkserver {
@@ -325,13 +326,17 @@ int ChunkServer::Run(int argc, char** argv) {
         brpc::SERVER_DOESNT_OWN_SERVICE);
     CHECK(0 == ret) << "Fail to add ChunkServerService";
 
+    brpc::ServerOptions opts;
+    opts.num_threads = FLAGS_bthreadWorkerCount;
+
     // 启动rpc service
     LOG(INFO) << "Internal server is going to serve on: "
               << copysetNodeOptions.ip << ":" << copysetNodeOptions.port;
-    if (server.Start(endPoint, NULL) != 0) {
+    if (server.Start(endPoint, &opts) != 0) {
         LOG(ERROR) << "Fail to start Internal Server";
         return -1;
     }
+
     /* 启动external server
        external server用于向client和工具等外部提供服务
        区别于mds和chunkserver之间的通信*/
@@ -355,7 +360,7 @@ int ChunkServer::Run(int argc, char** argv) {
         std::string externalAddr = registerOptions.chunkserverExternalIp + ":" +
                                 std::to_string(registerOptions.chunkserverPort);
         LOG(INFO) << "External server is going to serve on: " << externalAddr;
-        if (externalServer.Start(externalAddr.c_str(), NULL) != 0) {
+        if (externalServer.Start(externalAddr.c_str(), &opts) != 0) {
             LOG(ERROR) << "Fail to start External Server";
             return -1;
         }
