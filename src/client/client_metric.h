@@ -155,6 +155,8 @@ struct MDSClientMetric {
     InterfaceMetric getServerList;
     // GetOrAllocateSegment接口统计信息
     InterfaceMetric getOrAllocateSegment;
+
+    InterfaceMetric deAllocateSegment;
     // RenameFile接口统计信息
     InterfaceMetric renameFile;
     // Extend接口统计信息
@@ -185,6 +187,7 @@ struct MDSClientMetric {
           refreshSession(prefix, "refreshSession"),
           getServerList(prefix, "getServerList"),
           getOrAllocateSegment(prefix, "getOrAllocateSegment"),
+          deAllocateSegment(prefix, "deAllocateSegment"),
           renameFile(prefix, "renameFile"),
           extendFile(prefix, "extendFile"),
           deleteFile(prefix, "deleteFile"),

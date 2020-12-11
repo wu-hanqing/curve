@@ -144,6 +144,9 @@ void MDS::Run() {
     LOG_IF(FATAL, !cleanManager_->Start()) << "start cleanManager fail.";
     // recover unfinished tasks
     cleanManager_->RecoverCleanTasks();
+
+    cleanDiscardSegmentTask_->Start();
+
     // start scheduler module
     coordinator_->Run();
     // start brpc server
@@ -165,6 +168,8 @@ void MDS::Stop() {
     coordinator_->Stop();
 
     kCurveFS.Uninit();
+
+    cleanDiscardSegmentTask_->Stop();
 
     cleanManager_->Stop();
 
@@ -418,6 +423,17 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
 
     // init clean manager
     InitCleanManager();
+
+    // init clean discard segment task
+    uint32_t scanDiscardTaskIntervalMs = 0;
+    if (!conf_->GetUInt32Value("mds.segment.discard.scanIntevalMs",
+                               &scanDiscardTaskIntervalMs)) {
+        LOG(ERROR) << "Load mds.segment.discard.scanIntevalMs from config "
+                      "file failed, set value to 60000";
+        scanDiscardTaskIntervalMs = 60 * 1000;
+    }
+    cleanDiscardSegmentTask_ = std::make_shared<CleanDiscardSegmentTask>(
+        cleanManager_, scanDiscardTaskIntervalMs);
 
     // init FileRecordManager
     auto fileRecordManager = std::make_shared<FileRecordManager>();

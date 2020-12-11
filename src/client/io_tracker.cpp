@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <memory>
 
 #include "src/client/splitor.h"
 #include "src/client/iomanager.h"
@@ -30,6 +31,8 @@
 #include "src/client/request_scheduler.h"
 #include "src/client/request_closure.h"
 #include "src/common/timeutility.h"
+#include "src/client/metacache_struct.h"
+#include "src/client/discard_task.h"
 
 namespace curve {
 namespace client {
@@ -57,6 +60,13 @@ IOTracker::IOTracker(IOManager* iomanager,
     reqlist_.clear();
     reqcount_.store(0, std::memory_order_release);
     opStartTimePoint_ = curve::common::TimeUtility::GetTimeofDayUs();
+}
+
+void IOTracker::ReleaseAllSegmentLocks() {
+    LOG(INFO) << "Release segment locks";
+    for (auto& readlock : segmentLocks_) {
+        readlock->ReleaseLock();
+    }
 }
 
 void IOTracker::StartRead(void* buf, off_t offset, size_t length,
@@ -174,6 +184,52 @@ void IOTracker::DoWrite(MDSClient* mdsclient, const FInfo_t* fileInfo) {
         LOG(ERROR) << "split or schedule failed, return and recycle resource!";
         ReturnOnFail();
     }
+}
+
+void IOTracker::StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
+                             const FInfo* fileInfo) {
+    offset_ = offset;
+    length_ = length;
+    type_ = OpType::DISCARD;
+
+    DoDiscard(mdsclient, fileInfo);
+}
+
+void IOTracker::StartAioDiscard(CurveAioContext* ctx, MDSClient* mdsclient,
+                                const FInfo_t* fileInfo) {
+    aioctx_ = ctx;
+    offset_ = ctx->offset;
+    length_ = ctx->length;
+    type_ = OpType::DISCARD;
+
+    DoDiscard(mdsclient, fileInfo);
+}
+
+void IOTracker::DoDiscard(MDSClient* mdsClient, const FInfo* fileInfo) {
+    int ret = Splitor::CalcDiscardSegments(this);
+
+    if (!discardSegments_.empty()) {
+        for (auto index : discardSegments_) {
+            std::unique_ptr<DiscardTask> task(
+                new (std::nothrow) DiscardTask(index, mc_, mdsClient));
+            if (task == nullptr) {
+                LOG(ERROR) << "new DiscardTask failed, skip discard this "
+                              "segment, segment index ="
+                           << index;
+                continue;
+            }
+
+            LOG(INFO) << "Start DiscardTask, task id = " << task->Id();
+            timespec abstime =
+                butil::microseconds_from_now(discardOption_.discardTaskDelayMs);
+            brpc::PeriodicTaskManager::StartTaskAt(task.release(), abstime);
+        }
+    }
+
+    errcode_ = LIBCURVE_ERROR::OK;
+    Done();
+
+    return;
 }
 
 void IOTracker::ReadSnapChunk(const ChunkIDInfo &cinfo,
@@ -347,11 +403,19 @@ void IOTracker::HandleResponse(RequestContext* reqctx) {
     }
 }
 
+void IOTracker::InitDiscardOption(const DiscardOption& opt) {
+    discardOption_ = opt;
+}
+
 int IOTracker::Wait() {
     return iocv_.Wait();
 }
 
 void IOTracker::Done() {
+    if (type_ == OpType::READ || type_ == OpType::WRITE) {
+        ReleaseAllSegmentLocks();
+    }
+
     if (errcode_ == LIBCURVE_ERROR::OK) {
         uint64_t duration = TimeUtility::GetTimeofDayUs() - opStartTimePoint_;
         MetricHelper::UserLatencyRecord(fileMetric_, duration, type_);

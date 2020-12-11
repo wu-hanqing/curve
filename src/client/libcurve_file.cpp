@@ -362,6 +362,22 @@ int FileClient::AioWrite(int fd, CurveAioContext* aioctx,
     return ret;
 }
 
+int FileClient::AioDiscard(int fd, CurveAioContext* aioctx) {
+    if (CheckAligned(aioctx->offset, aioctx->length) == false) {
+        return -LIBCURVE_ERROR::NOT_ALIGNED;
+    }
+
+    int ret = -LIBCURVE_ERROR::FAILED;
+    ReadLockGuard lk(rwlock_);
+    auto iter = fileserviceMap_.find(fd);
+    if (CURVE_UNLIKELY(iter == fileserviceMap_.end())) {
+        LOG(ERROR) << "invalid fd";
+        return -LIBCURVE_ERROR::BAD_FD;
+    } else {
+        return iter->second->AioDiscard(aioctx);
+    }
+}
+
 int FileClient::Rename(const UserInfo_t& userinfo,
     const std::string& oldpath, const std::string& newpath) {
     LIBCURVE_ERROR ret;

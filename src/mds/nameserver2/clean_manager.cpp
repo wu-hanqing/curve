@@ -57,6 +57,15 @@ bool CleanManager::SubmitDeleteCommonFileJob(const FileInfo &fileInfo) {
     return taskMgr_->PushTask(commonFileCleanTask);
 }
 
+bool CleanManager::SubmitCleanDiscardSegmentJob(
+    const std::string& cleanSegmentKey,
+    const DiscardSegmentInfo& discardSegmentInfo) {
+    auto task = std::make_shared<SegmentCleanTask>(
+        cleanCore_, cleanSegmentKey, discardSegmentInfo);
+    task->SetTaskID(reinterpret_cast<TaskIDType>(task.get()));
+    return taskMgr_->PushTask(task);
+}
+
 bool CleanManager::RecoverCleanTasks(void) {
     // load task from store
     std::vector<FileInfo> snapShotFiles;
@@ -92,6 +101,46 @@ bool CleanManager::RecoverCleanTasks(void) {
 
 std::shared_ptr<Task> CleanManager::GetTask(TaskIDType id) {
     return taskMgr_->GetTask(id);
+}
+
+void CleanDiscardSegmentTask::Start() {
+    if (running_ == false) {
+        LOG(INFO) << "start CleanDiscardSegmentTask";
+        running_ = true;
+        taskThread_ = curve::common::Thread(
+            &CleanDiscardSegmentTask::ScanAndExecTask, this);
+    }
+}
+
+void CleanDiscardSegmentTask::Stop() {
+    if (running_.exchange(false)) {
+        LOG(INFO) << "stop CleanDiscardSegmentTask...";
+        sleeper_.interrupt();
+
+        taskThread_.join();
+        LOG(INFO) << "stop CleanDiscardSegmentTask success";
+    }
+}
+
+void CleanDiscardSegmentTask::ScanAndExecTask() {
+    std::map<std::string, DiscardSegmentInfo> discardSegments;
+
+    while (sleeper_.wait_for(std::chrono::milliseconds(scanIntervalMs_))) {
+        discardSegments.clear();
+        auto err = storage_->ListDiscardSegment(&discardSegments);
+        if (err != StoreStatus::OK) {
+            LOG(ERROR) << "ListDiscardSegment failed";
+            continue;
+        }
+
+        for (const auto& kv : discardSegments) {
+            if (!cleanManager_->SubmitCleanDiscardSegmentJob(kv.first,
+                                                             kv.second)) {
+                LOG(ERROR) << "SubmitCleanDiscardSegmentJob failed";
+                continue;
+            }
+        }
+    }
 }
 
 }  // namespace mds

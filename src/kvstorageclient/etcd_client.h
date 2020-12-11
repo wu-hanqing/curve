@@ -26,6 +26,7 @@
 #include <libetcdclient.h>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace curve {
 namespace kvstorage {
@@ -77,6 +78,22 @@ class KVStorageClient {
      */
     virtual int List(const std::string &startKey, const std::string &endKey,
         std::vector<std::string> *values) = 0;
+
+    /**
+     * @brief List Get all the key and values between [startKey, endKey)
+     *
+     * @param[in] startKey
+     * @param[in] endKey
+     * @param[out] key and values between [startKey, endKey)
+     *
+     * @return error code
+     */
+    // virtual int List(const std::string& startKey, const std::string& endKey,
+    //                  std::map<std::string, std::string>* out) = 0;
+
+    virtual int List(
+        const std::string& startKey, const std::string& endKey,
+        std::vector<std::pair<std::string, std::string> >* out) = 0;
 
     /**
      * @brief Delete Delete the value of the specified key
@@ -150,6 +167,9 @@ class EtcdClientImp : public KVStorageClient {
 
     int List(const std::string &startKey,
         const std::string &endKey, std::vector<std::string> *values) override;
+
+    int List(const std::string& startKey, const std::string& endKey,
+             std::vector<std::pair<std::string, std::string> >* out) override;
 
     int Delete(const std::string &key) override;
 

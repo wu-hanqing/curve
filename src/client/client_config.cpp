@@ -39,6 +39,9 @@ namespace curve {
 namespace client {
 int ClientConfig::Init(const char* configpath) {
     conf_.SetConfigPath(configpath);
+
+    LOG(INFO) << "Init config from " << configpath;
+
     if (!conf_.LoadConfig()) {
         LOG(ERROR) << "Load config failed, config path = " << configpath;
         return -1;
@@ -217,6 +220,25 @@ int ClientConfig::Init(const char* configpath) {
     LOG_IF(WARNING, ret == false)
         << "config no global.turnOffHealthCheck info, using default value "
         << fileServiceOption_.commonOpt.turnOffHealthCheck;
+
+    ret = conf_.GetBoolValue(
+        "discard.enableDiscard",
+        &fileServiceOption_.ioOpt.discardOption.enableDiscard);
+    LOG_IF(ERROR, ret == false)
+        << "config no discard.enableDiscard info";
+    RETURN_IF_FALSE(ret);
+
+    ret = conf_.GetUInt32Value("discard.discardGranularity",
+        &fileServiceOption_.ioOpt.metaCacheOpt.discardGranularity);
+    LOG_IF(ERROR, ret == false)
+        << "config no discard.discardGranularity info";
+    RETURN_IF_FALSE(ret);
+
+    ret = conf_.GetUInt32Value("discard.discardTaskDelayMs",
+        &fileServiceOption_.ioOpt.discardOption.discardTaskDelayMs);
+    LOG_IF(ERROR, ret == false)
+        << "config no discard.discardTaskDelayMs info";
+    RETURN_IF_FALSE(ret);
 
     return 0;
 }

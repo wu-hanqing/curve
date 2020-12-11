@@ -230,6 +230,12 @@ class CurveFS {
         bool allocateIfNoExist, PageFileSegment *segment);
 
     /**
+     * @brief
+     */
+    StatusCode DeAllocateSegment(const std::string& filename,
+                                 const uint64_t offset);
+
+    /**
      *  @brief get the root file info
      *  @param
      *  @return return the root file info obtained
@@ -519,6 +525,9 @@ class CurveFS {
     bool CheckSignature(const std::string& owner,
                         const std::string& signature,
                         uint64_t date);
+
+    bool CheckSegmentOffset(const FileInfo& fileInfo,
+                            const uint64_t offset) const;
 
     StatusCode CheckPathOwnerInternal(const std::string &filename,
                               const std::string &owner,

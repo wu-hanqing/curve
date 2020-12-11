@@ -411,6 +411,21 @@ class FakeNameServerStorage : public NameServerStorage {
         return StoreStatus::OK;
     }
 
+    StoreStatus DiscardSegment(const FileInfo& fileInfo,
+                               const PageFileSegment& segment) override {
+        return StoreStatus::OK;
+    }
+
+    StoreStatus CleanDiscardSegment(const std::string& key,
+                                    int64_t* revision) override {
+        return StoreStatus::OK;
+    }
+
+    StoreStatus ListDiscardSegment(
+        std::map<std::string, DiscardSegmentInfo>* out) override {
+        return StoreStatus::OK;
+    }
+
  private:
     std::mutex lock_;
     std::map<std::string, std::string> memKvMap_;

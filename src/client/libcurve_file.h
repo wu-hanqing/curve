@@ -151,6 +151,8 @@ class FileClient {
     virtual int AioWrite(int fd, CurveAioContext* aioctx,
                          UserDataType dataType = UserDataType::RawBuffer);
 
+    virtual int AioDiscard(int fd, CurveAioContext* aioctx);
+
     /**
      * 重命名文件
      * @param: userinfo是用户信息

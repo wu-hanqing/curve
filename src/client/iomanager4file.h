@@ -102,6 +102,8 @@ class IOManager4File : public IOManager {
     int AioWrite(CurveAioContext* aioctx, MDSClient* mdsclient,
                  UserDataType dataType);
 
+    int AioDiscard(CurveAioContext* aioctx, MDSClient* mdsclient);
+
     /**
      * 析构，回收资源
      */

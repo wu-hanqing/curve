@@ -41,6 +41,7 @@ using CopysetID     = uint32_t;
 using LogicPoolID   = uint32_t;
 using ChunkServerID = uint32_t;
 using ChunkIndex    = uint32_t;
+using SegmentIndex  = uint32_t;
 
 using EndPoint  = butil::EndPoint;
 using Status    = butil::Status;
@@ -56,6 +57,7 @@ enum class OpType {
     CREATE_CLONE,
     RECOVER_CHUNK,
     GET_CHUNK_INFO,
+    DISCARD,
     UNKNOWN
 };
 
@@ -214,6 +216,8 @@ inline const char* OpTypeToString(OpType optype) {
         return "RecoverChunk";
     case OpType::GET_CHUNK_INFO:
         return "GetChunkInfo";
+    case OpType::DISCARD:
+        return "Discard";
     case OpType::UNKNOWN:
     default:
         return "Unknown";
@@ -276,6 +280,14 @@ class ClientDummyServerInfo {
 };
 
 inline void TrivialDeleter(void* ptr) {}
+
+enum class MetaCacheErrorType {
+    OK = 0,
+    CHUNKINFO_NOT_FOUND = 1,
+    LEADERINFO_NOT_FOUND = 2,
+    SERVERLIST_NOT_FOUND = 3,
+    UNKNOWN_ERROR
+};
 
 }   // namespace client
 }   // namespace curve

@@ -57,14 +57,43 @@ void MetaCache::Init(const MetaCacheOption& metaCacheOpt,
 }
 
 MetaCacheErrorType MetaCache::GetChunkInfoByIndex(ChunkIndex chunkidx,
-                                                  ChunkIDInfo* chunxinfo) {
-    ReadLockGuard rdlk(rwlock4ChunkInfo_);
-    auto iter = chunkindex2idMap_.find(chunkidx);
-    if (iter != chunkindex2idMap_.end()) {
-        *chunxinfo = iter->second;
-        return MetaCacheErrorType::OK;
+                                                  ChunkIDInfo* chunkInfo) {
+    lldiv_t res = std::div(
+        static_cast<long long>(chunkidx) * fileInfo_.chunksize,  // NOLINT
+        static_cast<long long>(fileInfo_.segmentsize));          // NOLINT
+
+    SegmentIndex segmentIndex = res.quot;
+    ChunkIndex internalChunkIdx = res.rem / fileInfo_.chunksize;
+
+    ReadLockGuard lk(rwlock4Segments_);
+    auto iter = segments_.find(segmentIndex);
+    if (iter != segments_.end()) {
+        FileSegmentInfo* fileSegment = &iter->second;
+        FileSegmentReadLockGuard lk(fileSegment);
+        return fileSegment->GetChunkInfoByIndex(internalChunkIdx, chunkInfo);
     }
+
     return MetaCacheErrorType::CHUNKINFO_NOT_FOUND;
+}
+
+void MetaCache::UpdateChunkInfoByIndex(ChunkIndex cindex,
+                                       const ChunkIDInfo& cinfo) {
+    lldiv_t res = std::div(
+        static_cast<long long>(cindex) * fileInfo_.chunksize,  // NOLINT
+        static_cast<long long>(fileInfo_.segmentsize));        // NOLINT
+
+    SegmentIndex segmentIndex = res.quot;
+    ChunkIndex internalChunkIdx = res.rem / fileInfo_.chunksize;
+
+    FileSegmentInfo* fileSegment = GetFileSegmentInfo(segmentIndex);
+    FileSegmentLockGuard<FileSegmentLockType::Write> lk(fileSegment);
+    fileSegment->UpdateChunkInfoByIndex(internalChunkIdx, cinfo);
+}
+
+void MetaCache::UpdateSegmentInfoByIndex(SegmentIndex segmentIndex,
+                                         const SegmentInfo& segment) {
+    FileSegmentInfo* fileSegment = GetFileSegmentInfo(segmentIndex);
+    fileSegment->SetSegment(segment);
 }
 
 bool MetaCache::IsLeaderMayChange(LogicPoolID logicPoolId,
@@ -260,12 +289,6 @@ int MetaCache::UpdateLeader(LogicPoolID logicPoolId,
 
     ChunkServerAddr csAddr(leaderAddr);
     return iter->second.UpdateLeaderInfo(csAddr);
-}
-
-void MetaCache::UpdateChunkInfoByIndex(ChunkIndex cindex,
-                                       const ChunkIDInfo& cinfo) {
-    WriteLockGuard wrlk(rwlock4ChunkInfo_);
-    chunkindex2idMap_[cindex] = cinfo;
 }
 
 void MetaCache::UpdateCopysetInfo(LogicPoolID logicPoolid, CopysetID copysetid,

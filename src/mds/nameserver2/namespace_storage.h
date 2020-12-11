@@ -221,6 +221,23 @@ class NameServerStorage {
         InodeID id, uint64_t off, int64_t *revision) = 0;
 
     /**
+     * @brief Move segment metadata to another table
+     *        background task will delete every chunk and delete segment finally
+     * @param[in] id: Inode ID of the target file
+     * @param[in] off: Offset of the target segment
+     *
+     * @return StoreStatus: error code
+     */
+    virtual StoreStatus DiscardSegment(const FileInfo& fileInfo,
+                                       const PageFileSegment& segment) = 0;
+
+    virtual StoreStatus CleanDiscardSegment(const std::string& key,
+                                            int64_t* revision) = 0;
+
+    virtual StoreStatus ListDiscardSegment(
+        std::map<std::string, DiscardSegmentInfo>* out) = 0;
+
+    /**
      * @brief SnapShotFile: Transaction for storing metadata of snapshotFile,
      *                      and update source file metadata
      *
@@ -294,6 +311,15 @@ class NameServerStorageImp : public NameServerStorage {
 
     StoreStatus DeleteSegment(
         InodeID id, uint64_t off, int64_t *revision) override;
+
+    StoreStatus DiscardSegment(const FileInfo& fileInfo,
+                             const PageFileSegment& segment) override;
+
+    StoreStatus CleanDiscardSegment(const std::string& key,
+                                    int64_t* revision) override;
+
+    StoreStatus ListDiscardSegment(
+        std::map<std::string, DiscardSegmentInfo>* out) override;
 
     StoreStatus SnapShotFile(const FileInfo *originalFileInfo,
                             const FileInfo * snapshotFileInfo) override;

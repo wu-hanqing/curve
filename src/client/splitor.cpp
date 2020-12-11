@@ -109,6 +109,43 @@ int Splitor::IO2ChunkRequests(IOTracker* iotracker, MetaCache* metaCache,
     return 0;
 }
 
+int Splitor::CalcDiscardSegments(IOTracker* iotracker) {
+    if (iotracker == nullptr) {
+        return -1;
+    }
+
+    MetaCache* metaCache = iotracker->mc_;
+    const FInfo* fileInfo = metaCache->GetFileInfo();
+    const uint64_t offset = iotracker->offset_;
+    const uint64_t length = iotracker->length_;
+
+    SegmentIndex beginIndex = offset / fileInfo->segmentsize;
+    SegmentIndex endIndex = (offset + length - 1) / fileInfo->segmentsize;
+    uint64_t currentOffset = offset;
+
+    while (beginIndex <= endIndex) {
+        uint64_t segmentEndOffset = (beginIndex + 1) * fileInfo->segmentsize;
+        uint64_t currentDiscardLength =
+            std::min(segmentEndOffset, offset + length) - currentOffset;
+
+        FileSegmentInfo* fileSegment =
+            metaCache->GetFileSegmentInfo(beginIndex);
+
+        // acquire segment write lock
+        FileSegmentLockGuard<FileSegmentLockType::Write> lk(fileSegment);
+        fileSegment->SetDiscard(currentOffset, currentDiscardLength);
+
+        if (fileSegment->IsAllDiscard()) {
+            iotracker->discardSegments_.push_back(beginIndex);
+        }
+
+        ++beginIndex;
+        currentOffset += currentDiscardLength;
+    }
+
+    return 0;
+}
+
 // this offset is begin by chunk
 int Splitor::SingleChunkIO2ChunkRequests(
     IOTracker* iotracker, MetaCache* metaCache,
@@ -174,20 +211,33 @@ bool Splitor::AssignInternal(IOTracker* iotracker, MetaCache* metaCache,
                              MDSClient* mdsclient, const FInfo_t* fileinfo,
                              ChunkIndex chunkidx) {
     const auto maxSplitSizeBytes = 1024 * iosplitopt_.fileIOSplitMaxSizeKB;
+    const auto res = std::div(
+        static_cast<long long>(chunkidx) * fileinfo->chunksize,  // NOLINT
+        static_cast<long long>(fileinfo->segmentsize));          // NOLINT
+    LOG(INFO) << "segment index = " << res.quot
+              << ", chunk index = " << res.rem / fileinfo->chunksize;
+
+    SegmentIndex segmentIndex = res.quot;
+    ChunkIndex internalChunkIdex = res.rem / fileinfo->chunksize;
+    FileSegmentInfo* fileSegment = metaCache->GetFileSegmentInfo(res.quot);
+    FileSegmentLockGuard<FileSegmentLockType::Read> lk(fileSegment);
 
     ChunkIDInfo chunkIdInfo;
-    MetaCacheErrorType errCode =
-        metaCache->GetChunkInfoByIndex(chunkidx, &chunkIdInfo);
+    MetaCacheErrorType errCode = fileSegment->GetChunkInfoByIndex(
+        internalChunkIdex, &chunkIdInfo);
 
     if (errCode == MetaCacheErrorType::CHUNKINFO_NOT_FOUND) {
+        lk.UnLock();
         if (false == GetOrAllocateSegment(
                          true,
                          static_cast<uint64_t>(chunkidx) * fileinfo->chunksize,
-                         mdsclient, metaCache, fileinfo)) {
+                         mdsclient, metaCache, fileSegment, fileinfo)) {
             return false;
         }
 
-        errCode = metaCache->GetChunkInfoByIndex(chunkidx, &chunkIdInfo);
+        lk.Lock();
+        errCode =
+            fileSegment->GetChunkInfoByIndex(internalChunkIdex, &chunkIdInfo);
     }
 
     if (errCode == MetaCacheErrorType::OK) {
@@ -211,8 +261,13 @@ bool Splitor::AssignInternal(IOTracker* iotracker, MetaCache* metaCache,
                 CalcRequestSourceInfo(iotracker, metaCache, chunkidx);
         }
 
-        targetlist->insert(targetlist->end(), templist.begin(),
-                            templist.end());
+        targetlist->insert(targetlist->end(), templist.begin(), templist.end());
+
+        if (ret == 0) {
+            // TODO(wuhanqing): fix this
+            fileSegment->AcquireReadLock();
+            iotracker->segmentLocks_.emplace_back(fileSegment);
+        }
 
         return ret == 0;
     }
@@ -227,7 +282,10 @@ bool Splitor::GetOrAllocateSegment(bool allocateIfNotExist,
                                    uint64_t offset,
                                    MDSClient* mdsClient,
                                    MetaCache* metaCache,
+                                   FileSegmentInfo* fileSegment,
                                    const FInfo* fileInfo) {
+    LOG(INFO) << "GetOrAllocateSegment, segmentIndex = "
+              << offset / fileInfo->segmentsize;
     SegmentInfo segmentInfo;
     LIBCURVE_ERROR errCode = mdsClient->GetOrAllocateSegment(
         allocateIfNotExist, offset, fileInfo, &segmentInfo);
@@ -239,13 +297,9 @@ bool Splitor::GetOrAllocateSegment(bool allocateIfNotExist,
         return false;
     }
 
-    const auto chunksize = fileInfo->chunksize;
-    uint32_t count = 0;
-    for (const auto& chunkIdInfo : segmentInfo.chunkvec) {
-        uint64_t chunkIdx =
-            (segmentInfo.startoffset + count * chunksize) / chunksize;
-        metaCache->UpdateChunkInfoByIndex(chunkIdx, chunkIdInfo);
-        ++count;
+    {
+        FileSegmentLockGuard<FileSegmentLockType::Write> lk(fileSegment);
+        fileSegment->SetSegment(segmentInfo);
     }
 
     std::vector<CopysetInfo> copysetInfos;

@@ -127,6 +127,9 @@ class MDSClient {
                                         uint64_t offset,
                                         const FInfo_t* fi,
                                         SegmentInfo* segInfo);
+
+    LIBCURVE_ERROR DeAllocateSegment(const FInfo* fileInfo, uint64_t offset);
+
     /**
      * 获取文件信息，fi是出参
      * @param: filename是文件名

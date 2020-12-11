@@ -31,6 +31,44 @@
 namespace curve {
 namespace common {
 
+TEST(RWLockTest, PerfTest) {
+    std::atomic<int64_t> totalUs(0);
+    std::atomic<int64_t> totalTimes(0);
+
+    BthreadRWLock rwlock;
+    // RWLock rwlock;
+
+    auto task = [&]() {
+        butil::Timer timer;
+        timer.start();
+        constexpr auto times = 100ull * 100 * 100;
+        for (auto i = 0ull; i < times; ++i) {
+            rwlock.RDLock();
+        }
+
+        for (auto i = 0ull; i < times; ++i) {
+            rwlock.Unlock();
+        }
+
+        timer.stop();
+        totalUs.fetch_add(timer.u_elapsed(0.0), std::memory_order_relaxed);
+        totalTimes.fetch_add(times, std::memory_order_relaxed);
+    };
+
+    std::vector<std::thread> ths;
+    for (int i = 0; i < 56; ++i) {
+        ths.emplace_back(task);
+    }
+
+    for (auto& th : ths) {
+        th.join();
+    }
+
+    // LOG(INFO) << "cost " << timer.u_elapsed(0.0) << " us";
+    LOG(INFO) << "total us: " << totalUs.load() << ", times " << totalTimes.load()
+        << ", avg us: " << (totalUs.load() * 1.0 / totalTimes.load());
+}
+
 TEST(RWLockTest, basic_test) {
     RWLock rwlock;
     {

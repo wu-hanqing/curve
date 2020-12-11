@@ -40,14 +40,6 @@ namespace client {
 
 using curve::common::RWLock;
 
-enum class MetaCacheErrorType {
-    OK = 0,
-    CHUNKINFO_NOT_FOUND = 1,
-    LEADERINFO_NOT_FOUND = 2,
-    SERVERLIST_NOT_FOUND = 3,
-    UNKNOWN_ERROR
-};
-
 class MetaCache {
  public:
     using LogicPoolCopysetID = uint64_t;
@@ -80,6 +72,17 @@ class MetaCache {
      */
     virtual MetaCacheErrorType GetChunkInfoByIndex(ChunkIndex chunkidx,
                                                    ChunkIDInfo_t* chunkinfo);
+
+    /**
+     * 通过chunk index更新chunkid信息
+     * @param: index为待更新的chunk index
+     * @param: chunkinfo为需要更新的info信息
+     */
+    virtual void UpdateChunkInfoByIndex(ChunkIndex cindex,
+                                        const ChunkIDInfo& chunkinfo);
+
+    virtual void UpdateSegmentInfoByIndex(SegmentIndex segmentIndex,
+                                          const SegmentInfo& segment);
 
     /**
      * sender发送数据的时候需要知道对应的leader然后发送给对应的chunkserver
@@ -121,13 +124,8 @@ class MetaCache {
     virtual void UpdateCopysetInfo(LogicPoolID logicPoolId,
                                    CopysetID copysetId,
                                    const CopysetInfo& csinfo);
-    /**
-     * 通过chunk index更新chunkid信息
-     * @param: index为待更新的chunk index
-     * @param: chunkinfo为需要更新的info信息
-     */
-    virtual void UpdateChunkInfoByIndex(ChunkIndex cindex,
-                                        const ChunkIDInfo& chunkinfo);
+
+
     /**
      * 通过chunk id更新chunkid信息
      * @param: cid为chunkid
@@ -237,6 +235,23 @@ class MetaCache {
         return unstableHelper_;
     }
 
+    FileSegmentInfo* GetFileSegmentInfo(SegmentIndex segmentIndex) {
+        {
+            ReadLockGuard lk(rwlock4Segments_);
+            if (segments_.count(segmentIndex) != 0) {
+                return &segments_.at(segmentIndex);
+            }
+        }
+
+        {
+            WriteLockGuard lk(rwlock4Segments_);
+            AddOneSegmnetUnlocked(segmentIndex);
+        }
+
+        ReadLockGuard lk(rwlock4Segments_);
+        return &segments_.at(segmentIndex);
+    }
+
  private:
     /**
      * @brief 从mds更新copyset复制组信息
@@ -269,6 +284,19 @@ class MetaCache {
         CopysetID copysetId,
         const ChunkServerAddr& leaderAddr);
 
+    void AddOneSegmnetUnlocked(SegmentIndex segmentIndex) {
+        if (segments_.count(segmentIndex) != 0) {
+            return;
+        }
+
+        segments_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(segmentIndex),
+            std::forward_as_tuple(segmentIndex,
+                                  fileInfo_.segmentsize,
+                                  metacacheopt_.discardGranularity));
+    }
+
  private:
     MDSClient*          mdsclient_;
     MetaCacheOption   metacacheopt_;
@@ -276,10 +304,13 @@ class MetaCache {
     // chunkindex到chunkidinfo的映射表
     CURVE_CACHELINE_ALIGNMENT ChunkIndexInfoMap     chunkindex2idMap_;
 
+    CURVE_CACHELINE_ALIGNMENT RWLock rwlock4Segments_;
+    CURVE_CACHELINE_ALIGNMENT std::unordered_map<SegmentIndex, FileSegmentInfo> segments_;  // NOLINT
+
     // logicalpoolid和copysetid到copysetinfo的映射表
     CURVE_CACHELINE_ALIGNMENT CopysetInfoMap        lpcsid2CopsetInfoMap_;
 
-    // chunkid到chunkidinfo的映射表
+    // // chunkid到chunkidinfo的映射表
     CURVE_CACHELINE_ALIGNMENT ChunkInfoMap          chunkid2chunkInfoMap_;
 
     // 三个读写锁分别保护上述三个映射表

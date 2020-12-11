@@ -60,6 +60,9 @@ class Splitor {
                            size_t length,
                            MDSClient* mdsclient,
                            const FInfo_t* fi);
+
+    static int CalcDiscardSegments(IOTracker* iotracker);
+
     /**
      * 对单ChunkIO进行细粒度拆分
      * @param: iotracker大IO上下文信息
@@ -118,6 +121,7 @@ class Splitor {
                                      uint64_t offset,
                                      MDSClient* mdsClient,
                                      MetaCache* metaCache,
+                                     FileSegmentInfo* fileSegment,
                                      const FInfo* fileInfo);
 
  private:

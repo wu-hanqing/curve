@@ -109,6 +109,8 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
      */
     int AioWrite(CurveAioContext* aioctx, UserDataType dataType);
 
+    int AioDiscard(CurveAioContext* aioctx);
+
     int Close();
 
     void UnInitialize();

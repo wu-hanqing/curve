@@ -111,6 +111,7 @@ const char* ErrorNum2ErrorName(LIBCURVE_ERROR err);
 typedef enum LIBCURVE_OP {
     LIBCURVE_OP_READ,
     LIBCURVE_OP_WRITE,
+    LIBCURVE_OP_DISCARD,
     LIBCURVE_OP_MAX,
 } LIBCURVE_OP;
 
@@ -480,6 +481,14 @@ class CurveClient {
      */
     virtual int AioWrite(int fd, CurveAioContext* aioctx,
                          UserDataType dataType);
+
+    /**
+     * @brief Async Discard
+     * @param fd file descriptor
+     * @param aioctx async request context
+     * @return return error code, 0 means success
+     */
+    virtual int AioDiscard(int fd, CurveAioContext* aioctx);
 
     /**
      * 测试使用，设置fileclient

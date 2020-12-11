@@ -130,6 +130,10 @@ int FileInstance::AioWrite(CurveAioContext* aioctx, UserDataType dataType) {
     return iomanager4file_.AioWrite(aioctx, mdsclient_, dataType);
 }
 
+int FileInstance::AioDiscard(CurveAioContext* aioctx) {
+    return iomanager4file_.AioDiscard(aioctx, mdsclient_);
+}
+
 // 两种场景会造成在Open的时候返回LIBCURVE_ERROR::FILE_OCCUPIED
 // 1. 强制重启qemu不会调用close逻辑，然后启动的时候原来的文件sessio还没过期.
 //    导致再次去发起open的时候，返回被占用，这种情况可以通过load sessionmap

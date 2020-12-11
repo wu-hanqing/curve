@@ -31,11 +31,17 @@
 #include "include/curve_compiler_specific.h"
 #include "src/client/client_common.h"
 #include "src/common/concurrent/spinlock.h"
+#include "src/common/concurrent/rw_lock.h"
+#include "src/common/bitmap.h"
 
 namespace curve {
 namespace client {
 
 using curve::common::SpinLock;
+using curve::common::ReadLockGuard;
+using curve::common::WriteLockGuard;
+using curve::common::Bitmap;
+using curve::common::BthreadRWLock;
 
 // copyset内的chunkserver节点的基本信息
 // 包含当前chunkserver的id信息，以及chunkserver的地址信息
@@ -263,6 +269,196 @@ inline bool operator==(const CopysetIDInfo& cpidinfo1,
                        const CopysetIDInfo& cpidinfo2) {
     return cpidinfo1.cpid == cpidinfo2.cpid && cpidinfo1.lpid == cpidinfo2.lpid;
 }
+
+class FileSegmentInfo {
+ public:
+    FileSegmentInfo(SegmentIndex segmentIndex, uint32_t segmentSize,
+                    uint32_t discardGranularity)
+        : segmentIndex_(segmentIndex),
+          segmentSize_(segmentSize),
+          discardGranularity_(discardGranularity),
+          rwlock_(),
+          discardBitmap_(segmentSize_ / discardGranularity_),
+          chunks_() {}
+
+    /**
+     * @brief Test if all bit was discarded
+     * @return Return true if all discard, otherwise return false
+     */
+    bool IsAllDiscard() {
+        return discardBitmap_.NextClearBit(0) == curve::common::Bitmap::NO_POS;
+    }
+
+    void AcquireReadLock() {
+        rdlocks_.fetch_add(1);
+        rwlock_.RDLock();
+    }
+
+    void AcquireWriteLock() {
+        LOG(INFO) << "Acquire write lock, " << std::hex << reinterpret_cast<uint64_t>(this);
+        wlock_.store(true);
+        rwlock_.WRLock();
+    }
+
+    void ReleaseLock() {
+        rwlock_.Unlock();
+        if (wlock_.exchange(false)) {
+            LOG(INFO) << "Release write lock, " << std::hex << reinterpret_cast<uint64_t>(this);
+            ;
+        } else {
+            rdlocks_.fetch_sub(1);
+            LOG(INFO) << "Release read lock, locks = " << rdlocks_.load() << ", "  << std::hex << reinterpret_cast<uint64_t>(this);
+        }
+    }
+
+    /**
+     * @brief Get internal bitmap for unit-test
+     * @return Internal bitmap
+     */
+    Bitmap& GetBitmap() {
+        return discardBitmap_;
+    }
+
+    /**
+     * @brief Clear bitmap and chunks in current segment
+     */
+    void ClearSegment() {
+        discardBitmap_.Clear();
+        chunks_.clear();
+    }
+
+    void SetSegment(const SegmentInfo& segment) {
+        if (segment.startoffset !=
+            static_cast<uint64_t>(segmentIndex_) * segmentSize_) {
+            return;
+        }
+
+        discardBitmap_.Clear();
+        chunks_.clear();
+
+        for (size_t i = 0; i < segment.chunkvec.size(); ++i) {
+            chunks_.emplace(i, segment.chunkvec[i]);
+        }
+    }
+
+    MetaCacheErrorType GetChunkInfoByIndex(const ChunkIndex chunkIdx,
+                                           ChunkIDInfo* chunkInfo) {
+        auto iter = chunks_.find(chunkIdx);
+        if (iter != chunks_.end()) {
+            *chunkInfo = iter->second;
+            return MetaCacheErrorType::OK;
+        }
+
+        return MetaCacheErrorType::CHUNKINFO_NOT_FOUND;
+    }
+
+    void UpdateChunkInfoByIndex(ChunkIndex chunkIdx,
+                                const ChunkIDInfo& chunkIdInfo) {
+        chunks_[chunkIdx] = chunkIdInfo;
+    }
+
+    void SetDiscard(const uint64_t offset, const uint32_t length);
+    void ClearDiscard(const uint64_t offset, const uint32_t length);
+
+ private:
+    const SegmentIndex segmentIndex_;
+    const uint32_t segmentSize_;
+    const uint32_t discardGranularity_;
+    BthreadRWLock rwlock_;
+    Bitmap discardBitmap_;
+    std::unordered_map<ChunkIndex, ChunkIDInfo> chunks_;
+
+    std::atomic<uint64_t> rdlocks_{0};
+    std::atomic<bool> wlock_;
+};
+
+inline void FileSegmentInfo::SetDiscard(const uint64_t offset,
+                                        const uint32_t length) {
+    if (length < discardGranularity_) {
+        return;
+    }
+
+    if (offset == 0 && length == segmentSize_) {
+        return discardBitmap_.Set();
+    }
+
+    const auto res = std::div(static_cast<int64_t>(offset),
+                              static_cast<int64_t>(discardGranularity_));
+    uint32_t startIndex = res.quot;
+    if (res.rem != 0) {
+        ++startIndex;
+    }
+
+    uint32_t endIndex = (offset + length) / discardGranularity_ - 1;
+
+    return discardBitmap_.Set(startIndex, endIndex);
+}
+
+inline void FileSegmentInfo::ClearDiscard(const uint64_t offset,
+                                          const uint32_t length) {
+    if (offset == 0 && length == segmentSize_) {
+        return discardBitmap_.Clear();
+    }
+
+    const uint32_t startIndex = offset / discardGranularity_;
+    const auto res = std::div(static_cast<int64_t>(offset + length),
+                              static_cast<int64_t>(discardGranularity_));
+
+    uint32_t endIndex = res.quot;
+    if (res.rem == 0 && endIndex != 0) {
+        --endIndex;
+    }
+
+    return discardBitmap_.Clear(startIndex, endIndex);
+}
+
+enum class FileSegmentLockType {
+    Read,
+    Write
+};
+
+template <FileSegmentLockType type>
+class FileSegmentLockGuard {
+ public:
+    explicit FileSegmentLockGuard(FileSegmentInfo* segment)
+        : locked_(false), segment_(segment) {
+        Lock();
+    }
+
+    FileSegmentLockGuard(const FileSegmentLockGuard&) = delete;
+    FileSegmentLockGuard& operator=(const FileSegmentLockGuard&) = delete;
+
+    ~FileSegmentLockGuard() {
+        UnLock();
+    }
+
+    void Lock() {
+        assert(locked_ == false);
+        if (type == FileSegmentLockType::Read) {
+            segment_->AcquireReadLock();
+        } else {
+            segment_->AcquireWriteLock();
+        }
+        locked_ = true;
+        // LOG(INFO) << "locked, " << reinterpret_cast<uint64_t>(this);
+    }
+
+    void UnLock() {
+        if (locked_) {
+            segment_->ReleaseLock();
+        }
+
+        locked_ = false;
+        // LOG(INFO) << "unlock, " << reinterpret_cast<uint64_t>(this);
+    }
+
+ private:
+    bool locked_;
+    FileSegmentInfo* segment_;
+};
+
+using FileSegmentReadLockGuard = FileSegmentLockGuard<FileSegmentLockType::Read>;
+using FileSegmentWriteLockGuard = FileSegmentLockGuard<FileSegmentLockType::Write>;
 
 }  // namespace client
 }  // namespace curve

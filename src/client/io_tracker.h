@@ -41,12 +41,16 @@
 
 namespace curve {
 namespace client {
+
 class IOManager;
+class FileSegmentInfo;
 
 // IOTracker用于跟踪一个用户IO，因为一个用户IO可能会跨chunkserver，
 // 因此在真正下发的时候会被拆分成多个小IO并发的向下发送，因此我们需要
 // 跟踪发送的request的执行情况。
 class CURVE_CACHELINE_ALIGNMENT IOTracker {
+    friend class Splitor;
+
  public:
     /**
      * 构造函数
@@ -99,6 +103,12 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
      */
     void StartAioWrite(CurveAioContext* ctx, MDSClient* mdsclient,
                        const FInfo_t* fileInfo);
+
+    void StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
+                      const FInfo_t* fileInfo);
+    void StartAioDiscard(CurveAioContext* ctx, MDSClient* mdsclient,
+                         const FInfo_t* fileInfo);
+
     /**
      * chunk相关接口是提供给snapshot使用的，上层的snapshot和file
      * 接口是分开的，在IOTracker这里会将其统一，这样对下层来说不用
@@ -206,7 +216,11 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
         readDatas_[subIoIndex] = data;
     }
 
+    static void InitDiscardOption(const DiscardOption& opt);
+
  private:
+    void ReleaseAllSegmentLocks();
+
     /**
      * 当IO返回的时候调用done，由done负责向上返回
      */
@@ -243,11 +257,14 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
      */
     RequestContext* GetInitedRequestContext() const;
 
+    // TODO(wuhanqing): remove mdsclient and fileInfo
     // perform read operation
     void DoRead(MDSClient* mdsclient, const FInfo_t* fileInfo);
 
     // perform write operation
     void DoWrite(MDSClient* mdsclient, const FInfo_t* fileInfo);
+
+    void DoDiscard(MDSClient* mdsclient, const FInfo_t* fileInfo);
 
  private:
     // io 类型
@@ -287,6 +304,8 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     // 大IO被拆分成多个request，这些request放在reqlist中国保存
     std::vector<RequestContext*>   reqlist_;
 
+    std::vector<SegmentIndex> discardSegments_;
+
     // scheduler用来将用户线程与client自己的线程切分
     // 大IO被切分之后，将切分的reqlist传给scheduler向下发送
     RequestScheduler* scheduler_;
@@ -310,8 +329,12 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     // 快照克隆系统异步调用回调指针
     SnapCloneClosure* scc_;
 
+    std::vector<FileSegmentInfo*> segmentLocks_;
+
     // id生成器
     static std::atomic<uint64_t> tracekerID_;
+
+    static DiscardOption discardOption_;
 };
 }   // namespace client
 }   // namespace curve

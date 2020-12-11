@@ -188,6 +188,7 @@ struct MetaCacheOption {
     uint32_t metacacheRPCRetryIntervalUS = 500;
     uint32_t metacacheGetLeaderRPCTimeOutMS = 1000;
     uint32_t metacacheGetLeaderBackupRequestMS = 100;
+    uint32_t discardGranularity = 4096;
     std::string metacacheGetLeaderBackupRequestLbName = "rr";
     ChunkServerUnstableOption chunkserverUnstableOption;
 };
@@ -213,6 +214,12 @@ struct TaskThreadOption {
     uint32_t isolationTaskThreadPoolSize = 1;
 };
 
+// for discard
+struct DiscardOption {
+    bool enableDiscard = false;
+    uint32_t discardTaskDelayMs = 1000 * 60 * 3;  // 3 min
+};
+
 /**
  * IOOption存储了当前io 操作所需要的所有配置信息
  */
@@ -222,6 +229,7 @@ struct IOOption {
     MetaCacheOption metaCacheOpt;
     TaskThreadOption taskThreadOpt;
     RequestScheduleOption reqSchdulerOpt;
+    DiscardOption discardOption;
 };
 
 /**
@@ -255,6 +263,7 @@ struct FileServiceOption {
     LeaseOption leaseOpt;
     CommonConfigOpt commonOpt;
     MetaServerOption metaServerOpt;
+    DiscardOption discardOption;
 };
 
 }  // namespace client
