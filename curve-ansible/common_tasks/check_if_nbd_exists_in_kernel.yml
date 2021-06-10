@@ -16,7 +16,7 @@
 #
 
 - name: check if nbd exists in kernel
-  shell: sudo /sbin/modprobe nbd
+  shell: /sbin/modprobe nbd
   ignore_errors: true
   register: modprobe_res
 
