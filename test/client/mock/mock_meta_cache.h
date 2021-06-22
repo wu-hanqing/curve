@@ -76,6 +76,8 @@ class MockMetaCache : public MetaCache {
     }
 
     MOCK_METHOD1(CleanChunksInSegment, void(SegmentIndex));
+    MOCK_METHOD2(GetChunkInfoByIndex,
+                 MetaCacheErrorType(ChunkIndex, ChunkIDInfo_t *));
 
  private:
     FakeMetaCache fakeMetaCache_;

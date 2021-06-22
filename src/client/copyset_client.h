@@ -40,12 +40,11 @@
 namespace curve {
 namespace client {
 
-using curve::common::Uncopyable;
 using ::google::protobuf::Closure;
 
-// TODO(tongguangxun) :后续除了read、write的接口也需要调整重试逻辑
 class MetaCache;
 class RequestScheduler;
+
 /**
  * 负责管理 ChunkServer 的链接，向上层提供访问
  * 指定 copyset 的 chunk 的 read/write 等接口

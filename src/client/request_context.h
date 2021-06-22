@@ -82,7 +82,7 @@ struct CURVE_CACHELINE_ALIGNMENT RequestContext {
     size_t              rawlength_ = 0;
 
     // user's single io request will split into several requests
-    // subIoIndex_ is an index of serveral requests
+    // subIoIndex_ is an index of several requests
     uint32_t subIoIndex_ = 0;
 
     // read data of current request
@@ -112,6 +112,8 @@ struct CURVE_CACHELINE_ALIGNMENT RequestContext {
 
     // 当前request context id
     uint64_t            id_ = 0;
+
+    bool aligned = false;
 
     static RequestContext* NewInitedRequestContext() {
         RequestContext* ctx = new (std::nothrow) RequestContext();

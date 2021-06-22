@@ -28,17 +28,13 @@
 #include <string>
 #include <vector>
 
-#include "src/client/metacache.h"
-#include "src/client/mds_client.h"
-#include "src/client/client_common.h"
-#include "src/client/request_context.h"
 #include "include/client/libcurve.h"
-#include "src/client/request_scheduler.h"
 #include "include/curve_compiler_specific.h"
+#include "proto/chunk.pb.h"
+#include "src/client/client_common.h"
+#include "src/client/config_info.h"
 #include "src/client/io_condition_varaiable.h"
 #include "src/common/throttle.h"
-
-#include "proto/chunk.pb.h"
 
 namespace curve {
 namespace client {
@@ -48,6 +44,11 @@ using curve::common::Throttle;
 class IOManager;
 class FileSegment;
 class DiscardTaskManager;
+class MDSClient;
+class RequestContext;
+class RequestScheduler;
+class MetaCache;
+class FileMetric;
 
 // IOTracker用于跟踪一个用户IO，因为一个用户IO可能会跨chunkserver，
 // 因此在真正下发的时候会被拆分成多个小IO并发的向下发送，因此我们需要
@@ -290,6 +291,8 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
                    ? (type_ != OpType::DISCARD ? length_ : 0)
                    : (-errcode_);
     }
+
+    int HandleUnalignedRequest(const std::vector<RequestContext*>& requests);
 
  private:
     // io 类型

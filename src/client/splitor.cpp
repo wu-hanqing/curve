@@ -28,11 +28,12 @@
 #include <string>
 #include <vector>
 
-#include "src/client/file_instance.h"
+#include "src/client/io_tracker.h"
 #include "src/client/mds_client.h"
+#include "src/client/metacache.h"
 #include "src/client/metacache_struct.h"
 #include "src/client/request_closure.h"
-#include "src/common/location_operator.h"
+#include "src/common/fast_align.h"
 
 namespace curve {
 namespace client {
@@ -41,7 +42,10 @@ IOSplitOption Splitor::iosplitopt_;
 
 void Splitor::Init(const IOSplitOption& ioSplitOpt) {
     iosplitopt_ = ioSplitOpt;
-    LOG(INFO) << "io splitor init success!";
+    LOG(INFO) << "io splitor init success, file split max size "
+              << iosplitopt_.fileIOSplitMaxSizeKB << "KB"
+              << ", regular alignment " << iosplitopt_.alignment.regular
+              << ", clone alignment " << iosplitopt_.alignment.clone;
 }
 
 int Splitor::IO2ChunkRequests(IOTracker* iotracker, MetaCache* metaCache,
@@ -88,7 +92,38 @@ int Splitor::SingleChunkIO2ChunkRequests(
     uint64_t currentOffset = offset;
     uint64_t leftLength = length;
     while (leftLength > 0) {
+        bool aligned = true;
         uint64_t requestLength = std::min(leftLength, maxSplitSizeBytes);
+        const uint64_t curEndOff = currentOffset + requestLength;
+
+        if (metaCache->IsCloneFile()) {
+            uint64_t alignedStartOffset =
+                common::align_up(currentOffset, iosplitopt_.alignment.clone);
+            uint64_t alignedEndOffset =
+                common::align_down(curEndOff, iosplitopt_.alignment.clone);
+
+            if (currentOffset == alignedStartOffset &&
+                (curEndOff) == alignedEndOffset) {
+                aligned = true;
+            } else {
+                if (currentOffset == alignedStartOffset) {
+                    requestLength = alignedStartOffset == alignedEndOffset
+                                        ? requestLength
+                                        : alignedEndOffset - alignedStartOffset;
+                    aligned = alignedStartOffset != alignedEndOffset;
+                } else if (curEndOff == alignedEndOffset) {
+                    requestLength = alignedStartOffset == alignedEndOffset
+                                        ? requestLength
+                                        : alignedStartOffset - currentOffset;
+                    aligned = false;
+                } else {
+                    requestLength = alignedEndOffset < alignedStartOffset
+                                        ? requestLength
+                                        : alignedStartOffset - currentOffset;
+                    aligned = false;
+                }
+            }
+        }
 
         RequestContext* newreqNode = RequestContext::NewInitedRequestContext();
         if (newreqNode == nullptr) {
@@ -109,6 +144,7 @@ int Splitor::SingleChunkIO2ChunkRequests(
         newreqNode->rawlength_   = requestLength;
         newreqNode->optype_      = iotracker->Optype();
         newreqNode->idinfo_      = idinfo;
+        newreqNode->aligned = aligned;
         newreqNode->done_->SetIOTracker(iotracker);
         targetlist->push_back(newreqNode);
 

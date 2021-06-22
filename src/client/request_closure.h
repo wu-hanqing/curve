@@ -28,16 +28,15 @@
 
 #include "include/curve_compiler_specific.h"
 #include "src/client/client_common.h"
-#include "src/client/client_metric.h"
-#include "src/client/inflight_controller.h"
-#include "src/common/concurrent/concurrent.h"
 
 namespace curve {
 namespace client {
 
+class FileMetric;
 class IOTracker;
-class RequestContext;
 class IOManager;
+class RequestContext;
+class RequestScheduler;
 
 class CURVE_CACHELINE_ALIGNMENT RequestClosure
     : public ::google::protobuf::Closure {
@@ -149,6 +148,13 @@ class CURVE_CACHELINE_ALIGNMENT RequestClosure
         return suspendRPC_;
     }
 
+ protected:
+    // closure的request信息
+    RequestContext* reqCtx_ = nullptr;
+
+    // 当前request的tracker信息
+    IOTracker* tracker_ = nullptr;
+
  private:
     // suspend io标志
     bool suspendRPC_ = false;
@@ -158,12 +164,6 @@ class CURVE_CACHELINE_ALIGNMENT RequestClosure
 
     // 当前request的错误码
     int errcode_ = -1;
-
-    // 当前request的tracker信息
-    IOTracker* tracker_ = nullptr;
-
-    // closure的request信息
-    RequestContext* reqCtx_ = nullptr;
 
     // metric信息
     FileMetric* metric_ = nullptr;
@@ -176,6 +176,32 @@ class CURVE_CACHELINE_ALIGNMENT RequestClosure
 
     // 下一次rpc超时时间
     uint64_t nextTimeoutMS_ = 0;
+};
+
+class PaddingReadClosure : public RequestClosure {
+ public:
+    PaddingReadClosure(RequestContext* requestCtx, RequestScheduler* scheduler,
+                       uint32_t align);
+
+    void Run() override;
+
+    RequestContext* AlignedRequest() const {
+        return alignedCtx_;
+    }
+
+ private:
+    void HandleRead();
+
+    void HandleWrite();
+
+    void GenAlignedRequest();
+
+    void HandleError(int errCode);
+
+ private:
+    uint32_t align_;
+    RequestContext* alignedCtx_;
+    RequestScheduler* scheduler_;
 };
 
 }  // namespace client

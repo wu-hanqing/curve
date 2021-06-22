@@ -52,5 +52,12 @@ TEST(MathUtilTest, TestClamp) {
     ASSERT_EQ(255, Clamp(256, 0, 255));
 }
 
+TEST(MathUtilTest, TestIsPowerOf2) {
+    ASSERT_TRUE(IsPowerOf2(2 << 10));
+    ASSERT_TRUE(IsPowerOf2(2 << 0));
+    ASSERT_FALSE(IsPowerOf2(0));
+    ASSERT_FALSE(IsPowerOf2((2 << 10) + (2 << 1)));
+}
+
 }  // namespace common
 }  // namespace curve

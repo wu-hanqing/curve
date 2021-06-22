@@ -20,21 +20,22 @@
  * Author: tongguangxun
  */
 
+#include "src/client/io_tracker.h"
+
 #include <glog/logging.h>
 
 #include <algorithm>
 #include <memory>
 #include <sstream>
 
-#include "src/client/splitor.h"
-#include "src/client/iomanager.h"
-#include "src/client/io_tracker.h"
-#include "src/client/request_scheduler.h"
-#include "src/client/request_closure.h"
-#include "src/common/timeutility.h"
-#include "src/client/source_reader.h"
-#include "src/client/metacache_struct.h"
 #include "src/client/discard_task.h"
+#include "src/client/iomanager.h"
+#include "src/client/metacache_struct.h"
+#include "src/client/request_closure.h"
+#include "src/client/request_scheduler.h"
+#include "src/client/source_reader.h"
+#include "src/client/splitor.h"
+#include "src/common/timeutility.h"
 
 namespace curve {
 namespace client {
@@ -112,6 +113,8 @@ void IOTracker::DoRead(MDSClient* mdsclient, const FInfo_t* fileInfo,
         PrepareReadIOBuffers(reqlist_.size());
         uint32_t subIoIndex = 0;
         std::vector<RequestContext*> originReadVec;
+        std::vector<RequestContext*> alignedRequests;
+        std::vector<RequestContext*> unalignedRequests;
 
         std::for_each(reqlist_.begin(), reqlist_.end(), [&](RequestContext* r) {
             // fake subrequest
@@ -125,6 +128,14 @@ void IOTracker::DoRead(MDSClient* mdsclient, const FInfo_t* fileInfo,
                     // read from original volume
                     originReadVec.emplace_back(r);
                 }
+
+                alignedRequests.push_back(r);
+            } else {
+                if (r->aligned) {
+                    alignedRequests.push_back(r);
+                } else {
+                    unalignedRequests.push_back(r);
+                }
             }
 
             r->done_->SetFileMetric(fileMetric_);
@@ -133,11 +144,13 @@ void IOTracker::DoRead(MDSClient* mdsclient, const FInfo_t* fileInfo,
         });
 
         reqcount_.store(reqlist_.size(), std::memory_order_release);
-        if (scheduler_->ScheduleRequest(reqlist_) == 0 &&
-            ReadFromSource(originReadVec, fileInfo->userinfo, mdsclient) == 0) {
-            ret = 0;
-        } else {
-            ret = -1;
+        ret = scheduler_->ScheduleRequest(alignedRequests);
+
+        if (ret == 0 && !originReadVec.empty()) {
+            ret = ReadFromSource(originReadVec, fileInfo->userinfo, mdsclient);
+        }
+        if (ret == 0 && !unalignedRequests.empty()) {
+            ret = HandleUnalignedRequest(unalignedRequests);
         }
     } else {
         LOG(ERROR) << "splitor read io failed, "
@@ -213,13 +226,29 @@ void IOTracker::DoWrite(MDSClient* mdsclient, const FInfo_t* fileInfo,
     if (ret == 0) {
         uint32_t subIoIndex = 0;
 
+        // TODO(wuhanqing): should processed in Splitor
+        std::vector<RequestContext*> alignedRequests;
+        std::vector<RequestContext*> unalignedRequests;
+
         reqcount_.store(reqlist_.size(), std::memory_order_release);
         std::for_each(reqlist_.begin(), reqlist_.end(), [&](RequestContext* r) {
             r->done_->SetFileMetric(fileMetric_);
             r->done_->SetIOManager(iomanager_);
             r->subIoIndex_ = subIoIndex++;
+
+            if (r->aligned) {
+                alignedRequests.push_back(r);
+            } else {
+                unalignedRequests.push_back(r);
+            }
         });
-        ret = scheduler_->ScheduleRequest(reqlist_);
+
+        if (!alignedRequests.empty()) {
+            ret = scheduler_->ScheduleRequest(alignedRequests);
+        }
+        if (ret == 0 && !unalignedRequests.empty()) {
+            ret = HandleUnalignedRequest(unalignedRequests);
+        }
     } else {
         LOG(ERROR) << "splitor write io failed, "
                    << "offset = " << offset_ << ", length = " << length_;
@@ -542,6 +571,7 @@ void IOTracker::Done() {
 }
 
 void IOTracker::DestoryRequestList() {
+    // TODO(wuhanqing): check this
     for (auto iter : reqlist_) {
         iter->UnInit();
         delete iter;
@@ -583,6 +613,19 @@ void IOTracker::ChunkServerErr2LibcurveErr(CHUNK_OP_STATUS errcode,
             *errout = LIBCURVE_ERROR::FAILED;
             break;
     }
+}
+
+// TODO(wuhanqing): this may error
+int IOTracker::HandleUnalignedRequest(
+    const std::vector<RequestContext*>& unaligned) {
+    std::vector<RequestContext*> paddingRequests;
+    for (auto& r : unaligned) {
+        // TODO(wuhanqing): fix this align hard code
+        PaddingReadClosure* p = new PaddingReadClosure(r, scheduler_, 4096);
+        paddingRequests.push_back(p->AlignedRequest());
+    }
+
+    return scheduler_->ScheduleRequest(paddingRequests);
 }
 
 }   // namespace client

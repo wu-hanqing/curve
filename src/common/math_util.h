@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <numeric>
+#include <type_traits>
 
 namespace curve {
 namespace common {
@@ -61,6 +62,12 @@ template <typename T>
 inline const T& Clamp(const T& value, const T& low, const T& high) {
     return Clamp(value, low, high,
                  [](const T& a, const T& b) { return a < b ? true : false; });
+}
+
+template <typename T>
+constexpr inline typename std::enable_if<std::is_integral<T>::value, bool>::type
+IsPowerOf2(T value) {
+    return value > 0 && ((value & (value - 1)) == 0);
 }
 
 }  // namespace common
