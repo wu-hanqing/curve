@@ -199,6 +199,8 @@ int NBDTool::WaitForTerminate(pid_t pid, const NBDConfig* config) {
             std::chrono::milliseconds(config->sleep_ms));
     }
 
+    std::cerr << "curve-nbd wait " << config->devpath << " unmap timeout"
+              << std::endl;
     return -ETIMEDOUT;
 }
 

@@ -92,7 +92,7 @@ struct NBDConfig {
     // force unmap even if the device is mounted
     bool force_unmap = false;
     // unmap等待进程退出的重试次数
-    int retry_times = 25;
+    int retry_times = 100;
     // unmap重试之间的睡眠间隔
     int sleep_ms = 200;
     // device's block size
