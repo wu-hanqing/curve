@@ -24,6 +24,8 @@
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <iomanip>
+#include <sstream>
 
 #include <algorithm>
 
@@ -77,10 +79,35 @@ CURVEFS_ERROR S3ClientAdaptorImpl::Init(
     }
 }
 
+std::string format_str(const char* buf, size_t size) {
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0');
+
+    const size_t line = 16;
+    const size_t sector = 512;
+
+    for (size_t i = 0; i < size; ++i) {
+        if (i % sector == 0) {
+            oss << "\noffset: 0x" << std::hex << i <<  "\n";
+        }
+
+        if (i % line == 0) {
+            oss << "\n";
+        }
+        oss << std::setw(2) << (static_cast<unsigned>(buf[i]) & 0xFF) << " ";
+    }
+
+    return oss.str();
+}
+
 int S3ClientAdaptorImpl::Write(uint64_t inodeId, uint64_t offset,
                                uint64_t length, const char* buf) {
     LOG(INFO) << "write start offset:" << offset << ", len:" << length
-              << ", fsId:" << fsId_ << ", inodeId:" << inodeId;
+              << ", fsId:" << fsId_ << ", inodeId:" << inodeId
+              << ", data: \n"
+              << format_str(buf, length);
+
+
 
     FileCacheManagerPtr fileCacheManager =
         fsCacheManager_->FindOrCreateFileCacheManager(fsId_, inodeId);

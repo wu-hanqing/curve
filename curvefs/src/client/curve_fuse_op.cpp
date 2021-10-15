@@ -23,6 +23,8 @@
 
 #include <string>
 #include <memory>
+#include <iomanip>
+#include <sstream>
 
 #include "curvefs/src/client/curve_fuse_op.h"
 #include "curvefs/src/client/fuse_client.h"
@@ -189,6 +191,27 @@ void FuseOpOpen(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
     fuse_reply_open(req, fi);
 }
 
+std::string format_str(const char* buf, size_t size) {
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0');
+
+    const size_t line = 16;
+    const size_t sector = 512;
+
+    for (size_t i = 0; i < size; ++i) {
+        if (i % sector == 0) {
+            oss << "\n";
+        }
+        
+        if (i % line == 0) {
+            oss << "\n";
+        }
+        oss << std::setw(2) << (static_cast<unsigned>(buf[i]) & 0xFF);
+    }
+
+    return oss.str();
+}
+
 void FuseOpRead(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
                    struct fuse_file_info *fi) {
     std::unique_ptr<char[]> buffer(new char[size]);
@@ -201,12 +224,24 @@ void FuseOpRead(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
         FuseReplyErrByErrCode(req, ret);
         return;
     }
+
+    LOG(INFO) << "fuse op read, ino: " << ino << ", size: " << size
+              << ", off: " << off << ", data:\n"
+              << format_str(buffer.get(), size);
+
     fuse_reply_buf(req, buffer.get(), rSize);
 }
+
+
 
 void FuseOpWrite(fuse_req_t req, fuse_ino_t ino, const char *buf,
                     size_t size, off_t off, struct fuse_file_info *fi) {
     size_t wSize = 0;
+
+    // LOG(INFO) << "fuse op write, ino: " << ino << ", size: " << size
+    //           << ", off: " << off << ", data: \n"
+    //           << format_str(buf, size);
+
     CURVEFS_ERROR ret =
         g_ClientInstance->FuseOpWrite(req, ino, buf, size, off, fi, &wSize);
     if (ret != CURVEFS_ERROR::OK) {
@@ -352,6 +387,9 @@ void FuseOpRelease(fuse_req_t req, fuse_ino_t ino,
 
 void FuseOpFsync(fuse_req_t req, fuse_ino_t ino, int datasync,
            struct fuse_file_info *fi) {
+    LOG(INFO) << "fuse op fsync, ino: " << ino << std::boolalpha
+              << ", datasync: " << datasync;
+
     CURVEFS_ERROR ret = g_ClientInstance->FuseOpFsync(req, ino, datasync, fi);
     FuseReplyErrByErrCode(req, ret);
 }

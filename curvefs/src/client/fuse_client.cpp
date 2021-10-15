@@ -278,6 +278,8 @@ CURVEFS_ERROR FuseClient::FuseOpOpen(fuse_req_t req, fuse_ino_t ino,
     ret = inodeWrapper->Open();
     if (ret != CURVEFS_ERROR::OK) {
         return ret;
+    } else {
+        LOG(INFO) << "fuse op open ino: " << ino << " success";
     }
 
     uint64_t nowTime = TimeUtility::GetTimeofDaySec();

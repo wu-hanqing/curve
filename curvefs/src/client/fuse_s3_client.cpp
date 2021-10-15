@@ -77,6 +77,8 @@ CURVEFS_ERROR FuseS3Client::FuseOpWrite(fuse_req_t req, fuse_ino_t ino,
                                         const char* buf, size_t size, off_t off,
                                         struct fuse_file_info* fi,
                                         size_t* wSize) {
+    LOG(INFO) << "s3 client fuse op write, ino: " << ino;
+
     // check align
     if (fi->flags & O_DIRECT) {
         if (!(is_aligned(off, DirectIOAlignemnt) &&
@@ -123,6 +125,8 @@ CURVEFS_ERROR FuseS3Client::FuseOpRead(fuse_req_t req, fuse_ino_t ino,
                                        size_t size, off_t off,
                                        struct fuse_file_info* fi, char* buffer,
                                        size_t* rSize) {
+    LOG(ERROR) << "s3 client fuse op read, ino: " << ino;
+
     // check align
     if (fi->flags & O_DIRECT) {
         if (!(is_aligned(off, DirectIOAlignemnt) &&
