@@ -18,13 +18,16 @@ load("//:copts.bzl", "CURVE_TEST_COPTS")
 
 cc_test(
     name = "client_integration_test_mds",
-    srcs = glob([
-        "*.h",
-        "mds_exception_test.cpp"],
+    srcs = glob(
+        [
+            "*.h",
+            "mds_exception_test.cpp",
+        ],
     ),
     copts = CURVE_TEST_COPTS,
     defines = ["FIU_ENABLE"],
-    linkopts = ["-lfiu",
+    linkopts = [
+        "-lfiu",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -45,17 +48,39 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "inconsistent_test",
+    srcs = ["inconsistent_test.cpp"],
+    copts = CURVE_TEST_COPTS,
+    defines = [
+        "FIU_ENABLE",
+        "UNIT_TEST",
+    ],
+    deps = [
+        "//external:brpc",
+        "//external:glog",
+        "//include/client:include_client",
+        "//src/client:curve_client",
+        "//src/common:curve_common",
+        "//src/common/concurrent:curve_concurrent",
+    ],
+    linkopts = [
+        "-pthread"
+    ],
+)
 
 cc_test(
     name = "client_integration_test_chunkserver",
-    srcs = glob([
-        "*.h",
-        "chunkserver_exception_test.cpp"
+    srcs = glob(
+        [
+            "*.h",
+            "chunkserver_exception_test.cpp",
         ],
     ),
     copts = CURVE_TEST_COPTS,
     defines = ["FIU_ENABLE"],
-    linkopts = ["-lfiu",
+    linkopts = [
+        "-lfiu",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -78,14 +103,16 @@ cc_test(
 
 cc_test(
     name = "client_integration_test_unstable_chunkserver",
-    srcs = glob([
-        "*.h",
-        "unstable_chunkserver_exception_test.cpp"
+    srcs = glob(
+        [
+            "*.h",
+            "unstable_chunkserver_exception_test.cpp",
         ],
     ),
     copts = CURVE_TEST_COPTS,
     defines = ["FIU_ENABLE"],
-    linkopts = ["-lfiu",
+    linkopts = [
+        "-lfiu",
     ],
     visibility = ["//visibility:public"],
     deps = [
