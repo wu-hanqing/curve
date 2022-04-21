@@ -90,6 +90,15 @@ class InodeManager {
 
     bool GetInodeIdList(std::list<uint64_t>* inodeIdList);
 
+    MetaStatusCode UpdateVolumeExtent(uint32_t fsId,
+                                      uint64_t inodeId,
+                                      const VolumeExtentList &extents);
+
+    MetaStatusCode GetVolumeExtent(uint32_t fsId,
+                                   uint64_t inodeId,
+                                   const std::vector<uint64_t> &slices,
+                                   VolumeExtentList *extents);
+
  private:
     void GenerateInodeInternal(uint64_t inodeId, const InodeParam &param,
                                Inode *inode);
@@ -98,7 +107,7 @@ class InodeManager {
                            uint64_t inodeId,
                            S3ChunkInfoMap added);
 
-    std::string GetInodeLockName(uint32_t fsId, uint64_t inodeId) {
+    static std::string GetInodeLockName(uint32_t fsId, uint64_t inodeId) {
         return std::to_string(fsId) + "_" + std::to_string(inodeId);
     }
 

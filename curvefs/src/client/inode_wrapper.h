@@ -1,4 +1,4 @@
-/*
+g/*
  *  Copyright (c) 2021 NetEase Inc.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,26 +64,20 @@ void AppendS3ChunkInfoToMap(uint64_t chunkIndex, const S3ChunkInfo &info,
 class InodeWrapper : public std::enable_shared_from_this<InodeWrapper> {
  public:
     InodeWrapper(const Inode &inode,
-        const std::shared_ptr<MetaServerClient> &metaClient)
-      : inode_(inode),
-        status_(InodeStatus::Normal),
-        metaClient_(metaClient),
-        openCount_(0),
-        dirty_(false) {
-        BuildExtentCache();
-        }
+                 const std::shared_ptr<MetaServerClient> &metaClient)
+        : inode_(inode),
+          status_(InodeStatus::Normal),
+          metaClient_(metaClient),
+          openCount_(0),
+          dirty_(false) {}
 
     InodeWrapper(Inode &&inode,
-        const std::shared_ptr<MetaServerClient> &metaClient)
-      : inode_(std::move(inode)),
-        status_(InodeStatus::Normal),
-        metaClient_(metaClient),
-        openCount_(0),
-        dirty_(false) {
-        BuildExtentCache();
-        }
-
-    ~InodeWrapper() {}
+                 const std::shared_ptr<MetaServerClient> &metaClient)
+        : inode_(std::move(inode)),
+          status_(InodeStatus::Normal),
+          metaClient_(metaClient),
+          openCount_(0),
+          dirty_(false) {}
 
     uint64_t GetInodeId() const {
         return inode_.inodeid();
@@ -295,6 +289,8 @@ class InodeWrapper : public std::enable_shared_from_this<InodeWrapper> {
     void FlushXattrAsync();
 
     void FlushS3ChunkInfoAsync();
+
+    
 
     CURVEFS_ERROR RefreshS3ChunkInfo();
 

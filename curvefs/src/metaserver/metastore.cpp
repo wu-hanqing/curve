@@ -28,9 +28,11 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/metaserver/partition_clean_manager.h"
 #include "curvefs/src/metaserver/copyset/copyset_node.h"
 #include "curvefs/src/metaserver/storage/converter.h"
+#include "src/common/concurrent/rw_lock.h"
 
 namespace curvefs {
 namespace metaserver {
@@ -480,12 +482,12 @@ MetaStatusCode MetaStoreImpl::UpdateInode(const UpdateInodeRequest* request,
                                           UpdateInodeResponse* response) {
     uint32_t fsId = request->fsid();
     uint64_t inodeId = request->inodeid();
-    if (!request->volumeextentmap().empty() &&
-        !request->s3chunkinfomap().empty()) {
-        LOG(ERROR) << "only one of type space info, choose volume or s3";
-        response->set_statuscode(MetaStatusCode::PARAM_ERROR);
-        return MetaStatusCode::PARAM_ERROR;
-    }
+    // if (!request->volumeextentmap().empty() &&
+    //     !request->s3chunkinfomap().empty()) {
+    //     LOG(ERROR) << "only one of type space info, choose volume or s3";
+    //     response->set_statuscode(MetaStatusCode::PARAM_ERROR);
+    //     return MetaStatusCode::PARAM_ERROR;
+    // }
 
     ReadLockGuard readLockGuard(rwLock_);
     std::shared_ptr<Partition> partition = GetPartition(request->partitionid());
@@ -565,6 +567,51 @@ std::shared_ptr<Partition> MetaStoreImpl::GetPartition(uint32_t partitionId) {
     }
 
     return nullptr;
+}
+
+MetaStatusCode MetaStoreImpl::GetVolumeExtent(
+    const GetVolumeExtentRequest* request,
+    GetVolumeExtentResponse* response) {
+    ReadLockGuard guard(rwLock_);
+    auto partition = GetPartition(request->partitionid());
+    if (!partition) {
+        auto st = MetaStatusCode::PARTITION_NOT_FOUND;
+        response->set_statuscode(st);
+        return st;
+    }
+
+    std::vector<uint64_t> slices{request->sliceoffsets().begin(),
+                                 request->sliceoffsets().end()};
+    VolumeExtentList extents;
+    auto st = partition->GetVolumeExtent(request->fsid(), request->inodeid(),
+                                         slices, &extents);
+    if (st != MetaStatusCode::OK) {
+        response->clear_slices();
+    }
+    if (!request->streaming()) {
+        *response->mutable_slices() = std::move(extents);
+        response->set_statuscode(st);
+        return st;
+    }
+
+    return MetaStatusCode::UNKNOWN_ERROR;
+}
+
+MetaStatusCode MetaStoreImpl::UpdateVolumeExtent(
+    const UpdateVolumeExtentRequest* request,
+    UpdateVolumeExtentResponse* response) {
+    ReadLockGuard guard(rwLock_);
+    auto partition = GetPartition(request->partitionid());
+    if (!partition) {
+        auto st = MetaStatusCode::PARTITION_NOT_FOUND;
+        response->set_statuscode(st);
+        return st;
+    }
+
+    auto st = partition->UpdateVolumeExtent(request->fsid(), request->inodeid(),
+                                            request->slices());
+    response->set_statuscode(st);
+    return st;
 }
 
 }  // namespace metaserver

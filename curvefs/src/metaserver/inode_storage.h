@@ -55,6 +55,7 @@ using ::curvefs::metaserver::storage::Converter;
 enum TABLE_TYPE : unsigned char {
     kTypeInode = 1,
     kTypeS3ChunkInfo = 2,
+    kTypeVolumeExtent = 3,
 };
 
 class InodeStorage {
@@ -124,6 +125,19 @@ class InodeStorage {
 
     std::shared_ptr<Iterator> GetAllInode();
 
+    MetaStatusCode UpdateVolumeExtentSlice(uint32_t fsId,
+                                           uint64_t inodeId,
+                                           const VolumeExtentSlice& slice);
+
+    MetaStatusCode GetAllVolumeExtent(uint32_t fsId,
+                                      uint64_t inodeId,
+                                      VolumeExtentList* extents);
+
+    MetaStatusCode GetVolumeExtentByOffset(uint32_t fsId,
+                                           uint64_t inodeId,
+                                           uint64_t offset,
+                                           VolumeExtentSlice* slice);
+
     size_t Size();
 
     MetaStatusCode Clear();
@@ -168,7 +182,8 @@ class InodeStorage {
     std::shared_ptr<KVStorage> kvStorage_;
     std::string table4inode_;
     std::string table4s3chunkinfo_;
-    std::shared_ptr<Converter> conv_;
+    std::string table4volumeextent_;
+    Converter conv_;
     std::unordered_set<std::string> keySet_;
 };
 

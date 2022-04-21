@@ -679,10 +679,10 @@ MetaServerClientImpl::UpdateInode(const Inode &inode,
         request.set_inodeopenstatuschange(statusChange);
         *(request.mutable_parent()) = inode.parent();
 
-        if (!inode.volumeextentmap().empty()) {
-            auto *exts = request.mutable_volumeextentmap();
-            *exts = inode.volumeextentmap();
-        }
+        // if (!inode.volumeextentmap().empty()) {
+        //     auto *exts = request.mutable_volumeextentmap();
+        //     *exts = inode.volumeextentmap();
+        // }
 
         curvefs::metaserver::MetaServerService_Stub stub(channel);
         stub.UpdateInode(cntl, &request, &response, nullptr);
@@ -795,10 +795,10 @@ void MetaServerClientImpl::UpdateInodeAsync(
         request.set_inodeopenstatuschange(statusChange);
         *(request.mutable_parent()) = inode.parent();
 
-        if (!inode.volumeextentmap().empty()) {
+        /*if (!inode.volumeextentmap().empty()) {
             auto *exts = request.mutable_volumeextentmap();
             *exts = inode.volumeextentmap();
-        }
+        }*/
 
         auto *rpcDone = new UpdateInodeRpcDone(taskExecutorDone,
             metaserverClientMetric_);

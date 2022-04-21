@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <vector>
 #include "curvefs/proto/common.pb.h"
+#include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/common/define.h"
 #include "curvefs/src/metaserver/dentry_manager.h"
 #include "curvefs/src/metaserver/dentry_storage.h"
@@ -96,6 +97,15 @@ class Partition {
                                           std::shared_ptr<Iterator>* iterator,
                                           bool returnS3ChunkInfoMap,
                                           bool compaction);
+
+    MetaStatusCode UpdateVolumeExtent(uint32_t fsId,
+                                      uint64_t inodeId,
+                                      const VolumeExtentList& extents);
+
+    MetaStatusCode GetVolumeExtent(uint32_t fsId,
+                                   uint64_t inodeId,
+                                   const std::vector<uint64_t>& slices,
+                                   VolumeExtentList* extents);
 
     MetaStatusCode InsertInode(const Inode& inode);
 

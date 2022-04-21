@@ -465,18 +465,18 @@ void InodeWrapper::BuildExtentCache() {
 }
 
 void InodeWrapper::AddVolumeExtentMapToInode() {
-    if (inode_.type() != FsFileType::TYPE_VOLUME) {
-        return;
-    }
+    // if (inode_.type() != FsFileType::TYPE_VOLUME) {
+    //     return;
+    // }
 
-    auto tmp = extentCache_.ToInodePb();
-    if (tmp.empty()) {
-        return;
-    }
+    // auto tmp = extentCache_.ToInodePb();
+    // if (tmp.empty()) {
+    //     return;
+    // }
 
-    VLOG(9) << "Volume extent map, ino: " << inode_.inodeid()
-            << ", extents: " << tmp;
-    inode_.mutable_volumeextentmap()->swap(tmp);
+    // VLOG(9) << "Volume extent map, ino: " << inode_.inodeid()
+    //         << ", extents: " << tmp;
+    // inode_.mutable_volumeextentmap()->swap(tmp);
 }
 
 }  // namespace client

@@ -26,7 +26,9 @@
 #include <google/protobuf/util/message_differencer.h>
 #include <list>
 
+#include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/common/define.h"
+#include "src/common/concurrent/name_lock.h"
 #include "src/common/timeutility.h"
 
 using ::curve::common::TimeUtility;
@@ -254,10 +256,10 @@ MetaStatusCode InodeManager::UpdateInode(const UpdateInodeRequest &request) {
     }
 
     // FIXME(wuhanqing): turncate
-    if (!request.volumeextentmap().empty()) {
-        *old.mutable_volumeextentmap() = request.volumeextentmap();
-        needUpdate = true;
-    }
+    // if (!request.volumeextentmap().empty()) {
+    //     *old.mutable_volumeextentmap() = request.volumeextentmap();
+    //     needUpdate = true;
+    // }
 
     if (!request.xattr().empty()) {
         VLOG(1) << "update inode has xattr";
@@ -415,5 +417,57 @@ MetaStatusCode InodeManager::InsertInode(const Inode &inode) {
 bool InodeManager::GetInodeIdList(std::list<uint64_t>* inodeIdList) {
     return inodeStorage_->GetInodeIdList(inodeIdList);
 }
+
+MetaStatusCode InodeManager::UpdateVolumeExtent(
+    uint32_t fsId,
+    uint64_t inodeId,
+    const VolumeExtentList &extents) {
+    VLOG(1) << "UpdateInodeExtent, fsId: " << fsId << ", inodeId: " << inodeId;
+    NameLockGuard guard(inodeLock_, GetInodeLockName(fsId, inodeId));
+
+    MetaStatusCode st = MetaStatusCode::UNKNOWN_ERROR;
+    for (const auto &slice : extents.slices()) {
+        st = inodeStorage_->UpdateVolumeExtentSlice(fsId, inodeId, slice);
+        if (st != MetaStatusCode::OK) {
+            LOG(ERROR) << "UpdateVolumeExtent failed, err: "
+                       << MetaStatusCode_Name(st) << ", fsId: " << fsId
+                       << ", inodeId: " << inodeId;
+            return st;
+        }
+    }
+
+    return MetaStatusCode::OK;
+}
+
+MetaStatusCode InodeManager::GetVolumeExtent(
+    uint32_t fsId,
+    uint64_t inodeId,
+    const std::vector<uint64_t> &slices,
+    VolumeExtentList *extents) {
+    VLOG(1) << "GetInodeExtent, fsId: " << fsId << ", inodeId: " << inodeId;
+
+    if (slices.empty()) {
+        return inodeStorage_->GetAllVolumeExtent(fsId, inodeId, extents);
+    }
+
+    VolumeExtentSlice extentSlice;
+    for (const auto &slice : slices) {
+        auto st = inodeStorage_->GetVolumeExtentByOffset(fsId, inodeId, slice,
+                                                         &extentSlice);
+        if (st != MetaStatusCode::OK) {
+            LOG(ERROR) << "GetVolumeExtent failed, fsId: " << fsId
+                       << ", inodeId: " << inodeId
+                       << ", slice offset: " << slice
+                       << ", error: " << MetaStatusCode_Name(st);
+            extents->Clear();
+            return st;
+        }
+
+        *extents->add_slices() = std::move(extentSlice);
+    }
+
+    return MetaStatusCode::OK;
+}
+
 }  // namespace metaserver
 }  // namespace curvefs

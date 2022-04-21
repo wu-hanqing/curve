@@ -44,7 +44,12 @@ enum class OperatorType : uint32_t {
     DeletePartition,
     PrepareRenameTx,
     GetOrModifyS3ChunkInfo,
-    /** Add new operator before `OperatorTypeMax` **/
+    GetVolumeExtent,
+    UpdateVolumeExtent,
+    // NOTE:
+    //   Add new operator before `OperatorTypeMax`
+    //   And DO NOT recorder or delete previous types
+    //   Also add corresponding name in below `OperatorTypeName`
     OperatorTypeMax,
 };
 

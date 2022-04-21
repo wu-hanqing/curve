@@ -134,6 +134,12 @@ bool GetDentryOperator::CanBypassPropose() const {
            node_->GetAppliedIndex() >= req->appliedindex();
 }
 
+bool GetVolumeExtentOperator::CanBypassPropose() const {
+    auto* req = static_cast<const GetVolumeExtentRequest*>(request_);
+    return req->has_appliedindex() &&
+           node_->GetAppliedIndex() >= req->appliedindex();
+}
+
 #define OPERATOR_ON_APPLY(TYPE)                                        \
     void TYPE##Operator::OnApply(int64_t index,                        \
                                  google::protobuf::Closure* done,      \
@@ -170,6 +176,8 @@ OPERATOR_ON_APPLY(CreateRootInode);
 OPERATOR_ON_APPLY(CreatePartition);
 OPERATOR_ON_APPLY(DeletePartition);
 OPERATOR_ON_APPLY(PrepareRenameTx);
+OPERATOR_ON_APPLY(GetVolumeExtent);
+OPERATOR_ON_APPLY(UpdateVolumeExtent);;
 
 #undef OPERATOR_ON_APPLY
 
@@ -244,6 +252,7 @@ OPERATOR_ON_APPLY_FROM_LOG(CreateRootInode);
 OPERATOR_ON_APPLY_FROM_LOG(CreatePartition);
 OPERATOR_ON_APPLY_FROM_LOG(DeletePartition);
 OPERATOR_ON_APPLY_FROM_LOG(PrepareRenameTx);
+OPERATOR_ON_APPLY_FROM_LOG(UpdateVolumeExtent);
 
 #undef OPERATOR_ON_APPLY_FROM_LOG
 
@@ -273,6 +282,7 @@ READONLY_OPERATOR_ON_APPLY_FROM_LOG(ListDentry);
 READONLY_OPERATOR_ON_APPLY_FROM_LOG(GetInode);
 READONLY_OPERATOR_ON_APPLY_FROM_LOG(BatchGetInodeAttr);
 READONLY_OPERATOR_ON_APPLY_FROM_LOG(BatchGetXAttr);
+READONLY_OPERATOR_ON_APPLY_FROM_LOG(GetVolumeExtent);
 
 #undef READONLY_OPERATOR_ON_APPLY_FROM_LOG
 
@@ -297,6 +307,8 @@ OPERATOR_REDIRECT(CreateRootInode);
 OPERATOR_REDIRECT(CreatePartition);
 OPERATOR_REDIRECT(DeletePartition);
 OPERATOR_REDIRECT(PrepareRenameTx);
+OPERATOR_REDIRECT(GetVolumeExtent);
+OPERATOR_REDIRECT(UpdateVolumeExtent);
 
 #undef OPERATOR_REDIRECT
 
@@ -320,6 +332,8 @@ OPERATOR_ON_FAILED(CreateRootInode);
 OPERATOR_ON_FAILED(CreatePartition);
 OPERATOR_ON_FAILED(DeletePartition);
 OPERATOR_ON_FAILED(PrepareRenameTx);
+OPERATOR_ON_FAILED(GetVolumeExtent);
+OPERATOR_ON_FAILED(UpdateVolumeExtent);
 
 #undef OPERATOR_ON_FAILED
 
@@ -342,6 +356,8 @@ OPERATOR_HASH_CODE(DeleteInode);
 OPERATOR_HASH_CODE(CreateRootInode);
 OPERATOR_HASH_CODE(PrepareRenameTx);
 OPERATOR_HASH_CODE(DeletePartition);
+OPERATOR_HASH_CODE(GetVolumeExtent);
+OPERATOR_HASH_CODE(UpdateVolumeExtent);
 
 #undef OPERATOR_HASH_CODE
 
@@ -376,6 +392,8 @@ OPERATOR_TYPE(CreateRootInode);
 OPERATOR_TYPE(PrepareRenameTx);
 OPERATOR_TYPE(CreatePartition);
 OPERATOR_TYPE(DeletePartition);
+OPERATOR_TYPE(GetVolumeExtent);
+OPERATOR_TYPE(UpdateVolumeExtent);
 
 #undef OPERATOR_TYPE
 

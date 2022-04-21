@@ -28,10 +28,12 @@
 #include <cstring>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/client/volume/extent.h"
+#include "curvefs/src/client/volume/extent_slice.h"
 #include "curvefs/src/volume/common.h"
 #include "src/common/concurrent/rw_lock.h"
 
@@ -40,20 +42,12 @@ namespace client {
 
 using ::curvefs::volume::ReadPart;
 using ::curvefs::volume::WritePart;
-
-struct AllocPart {
-    ExtentAllocInfo allocInfo;
-    // allocate space is aligned to block size
-    // but user's write are not, so we need 'padding' and 'writelength' to
-    // indicate actual user's write request's on allocated space
-    size_t padding = 0;
-    size_t writelength = 0;
-    const char* data = nullptr;
-};
+using ::curvefs::metaserver::VolumeExtentSlice;
+using ::curvefs::metaserver::VolumeExtentList;
 
 struct ExtentCacheOption {
     uint64_t preallocSize = 64ULL * 1024;
-    uint64_t rangeSize = 1ULL * 1024 * 1024 * 1024;
+    uint64_t sliceSize = 1ULL * 1024 * 1024 * 1024;
     uint32_t blocksize = 4096;
 };
 
@@ -64,10 +58,12 @@ class ExtentCache {
     static void SetOption(const ExtentCacheOption& option);
 
     // build extent cache from inode
-    void Build(
-        const google::protobuf::Map<uint64_t,
-                                    curvefs::metaserver::VolumeExtentList>&
-            fromInode);
+    // void Build(
+    //     const google::protobuf::Map<uint64_t,
+    //                                 curvefs::metaserver::VolumeExtentList>&
+    //         fromInode);
+
+    void Build(const VolumeExtentList& extents);
 
     void DivideForWrite(uint64_t offset,
                         uint64_t len,
@@ -85,35 +81,36 @@ class ExtentCache {
 
     void MarkWritten(uint64_t offset, uint64_t len);
 
-    google::protobuf::Map<uint64_t, curvefs::metaserver::VolumeExtentList>
-    ToInodePb() const;
+    // google::protobuf::Map<uint64_t, curvefs::metaserver::VolumeExtentList>
+    // ToInodePb() const;
 
-    std::unordered_map<uint64_t, std::map<uint64_t, PExtent>>
-    GetExtentsForTesting() const;
+    VolumeExtentList DirtyExtents();
+
+    std::unordered_map<uint64_t, ExtentSlice> GetSlicesForTesting() const;
 
  private:
-    void DivideForWriteWithinRange(const std::map<uint64_t, PExtent>& range,
-                                   uint64_t offset,
-                                   uint64_t len,
-                                   const char* data,
-                                   std::vector<WritePart>* allocated,
-                                   std::vector<AllocPart>* needAlloc);
+    // void DivideForWriteWithinRange(const std::map<uint64_t, PExtent>& range,
+    //                                uint64_t offset,
+    //                                uint64_t len,
+    //                                const char* data,
+    //                                std::vector<WritePart>* allocated,
+    //                                std::vector<AllocPart>* needAlloc);
 
-    void DivideForWriteWithinEmptyRange(uint64_t offset,
+    void DivideForWriteWithinEmptySlice(uint64_t offset,
                                         uint64_t len,
                                         const char* data,
                                         std::vector<AllocPart>* needAlloc);
 
-    void DivideForReadWithinRange(const std::map<uint64_t, PExtent>& range,
-                                  uint64_t offset,
-                                  uint64_t len,
-                                  char* data,
-                                  std::vector<ReadPart>* reads,
-                                  std::vector<ReadPart>* holes);
+    // void DivideForReadWithinRange(const std::map<uint64_t, PExtent>& range,
+    //                               uint64_t offset,
+    //                               uint64_t len,
+    //                               char* data,
+    //                               std::vector<ReadPart>* reads,
+    //                               std::vector<ReadPart>* holes);
 
-    void MergeWithinRange(std::map<uint64_t, PExtent>* range,
-                          uint64_t loffset,
-                          const PExtent& extent);
+    // void MergeWithinRange(std::map<uint64_t, PExtent>* range,
+    //                       uint64_t loffset,
+    //                       const PExtent& extent);
 
     void MarkWrittenWithinRange(std::map<uint64_t, PExtent>* range,
                                 uint64_t offset,
@@ -123,9 +120,17 @@ class ExtentCache {
     mutable curve::common::RWLock lock_;
 
     // key is offset
-    std::unordered_map<uint64_t, std::map<uint64_t, PExtent>> extents_;
+    // std::unordered_map<uint64_t, std::map<uint64_t, PExtent>> extents_;
+
+    // key is offset
+    std::unordered_map<uint64_t, ExtentSlice> slices_;
+
+    // dirty slices
+    std::unordered_set<ExtentSlice*> dirties_;
 
  private:
+    friend class ExtentSlice;
+
     static ExtentCacheOption option_;
 };
 
