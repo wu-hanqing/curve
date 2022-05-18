@@ -18,6 +18,7 @@ syntax="proto2";
 import "curvefs/proto/common.proto";
 package curvefs.metaserver;
 option cc_generic_services = true;
+option go_package = "curvefs/proto/metaserver";
 
 enum MetaStatusCode {
     OK = 0;
@@ -75,6 +76,7 @@ message Dentry {
     required uint64 txId = 5;
     optional uint32 flag = 6;
     optional FsFileType type = 7;
+    optional uint64 txSequence = 8;
 }
 
 message GetDentryResponse {

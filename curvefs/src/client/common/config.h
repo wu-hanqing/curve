@@ -23,6 +23,7 @@
 #ifndef CURVEFS_SRC_CLIENT_COMMON_CONFIG_H_
 #define CURVEFS_SRC_CLIENT_COMMON_CONFIG_H_
 
+#include <cstdint>
 #include <string>
 
 #include "curvefs/src/client/common/common.h"
@@ -66,6 +67,7 @@ struct ExcutorOpt {
     uint64_t minRetryTimesForceTimeoutBackoff = 5;
     uint64_t maxRetryTimesBeforeConsiderSuspend = 20;
     uint32_t batchLimit = 100;
+    bool enableRenameParallel = false;
 };
 
 struct LeaseOpt {
@@ -175,6 +177,7 @@ struct FuseClientOption {
     double attrTimeOut;
     double entryTimeOut;
     uint32_t listDentryLimit;
+    uint32_t listDentryThreads;
     uint32_t flushPeriodSec;
     uint32_t maxNameLength;
     uint64_t iCacheLruSize;
@@ -183,6 +186,8 @@ struct FuseClientOption {
     bool enableDCacheMetrics;
 
     uint32_t dummyServerStartPort;
+
+    bool enableMultiMountPointRename = false;
 
     bool enableFuseSplice = false;
 };
