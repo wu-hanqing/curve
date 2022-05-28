@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "curvefs/proto/common.pb.h"
 #include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/proto/space.pb.h"
 #include "curvefs/src/client/common/config.h"
@@ -56,12 +57,11 @@ namespace client {
 namespace rpcclient {
 
 using S3ChunkInfoMap = google::protobuf::Map<uint64_t, S3ChunkInfoList>;
+using ::curvefs::metaserver::VolumeExtentList;
 
 class MetaServerClient {
  public:
-    MetaServerClient() {}
-
-    virtual ~MetaServerClient() {}
+    virtual ~MetaServerClient() = default;
 
     virtual MetaStatusCode
     Init(const ExcutorOpt &excutorOpt, std::shared_ptr<MetaCache> metaCache,
@@ -92,11 +92,11 @@ class MetaServerClient {
                                     Inode *out, bool* streaming) = 0;
 
     virtual MetaStatusCode BatchGetInodeAttr(uint32_t fsId,
-        std::set<uint64_t> *inodeIds,
+        const std::set<uint64_t> &inodeIds,
         std::list<InodeAttr> *attr) = 0;
 
     virtual MetaStatusCode BatchGetXAttr(uint32_t fsId,
-        std::set<uint64_t> *inodeIds,
+        const std::set<uint64_t> &inodeIds,
         std::list<XAttr> *xattr) = 0;
 
     virtual MetaStatusCode UpdateInode(const Inode &inode,
@@ -125,14 +125,26 @@ class MetaServerClient {
     virtual MetaStatusCode CreateInode(const InodeParam &param, Inode *out) = 0;
 
     virtual MetaStatusCode DeleteInode(uint32_t fsId, uint64_t inodeid) = 0;
+
+    virtual bool SplitRequestInodes(uint32_t fsId,
+        const std::set<uint64_t> &inodeIds,
+        std::vector<std::vector<uint64_t>> *inodeGroups) = 0;
+
+    virtual void AsyncUpdateVolumeExtent(uint32_t fsId,
+                                         uint64_t inodeId,
+                                         const VolumeExtentList &extents,
+                                         MetaServerClientDone *done) = 0;
+
+    virtual MetaStatusCode GetVolumeExtent(uint32_t fsId,
+                                           uint64_t inodeId,
+                                           bool streaming,
+                                           VolumeExtentList *extents) = 0;
 };
 
 class MetaServerClientImpl : public MetaServerClient {
  public:
     explicit MetaServerClientImpl(const std::string &metricPrefix = "")
-        : metaserverClientMetric_(std::make_shared<MetaServerClientMetric>(
-                                  metricPrefix)),
-          streamClient_(std::make_shared<StreamClient>()) {}
+        : metric_(metricPrefix) {}
 
     MetaStatusCode
     Init(const ExcutorOpt &excutorOpt, std::shared_ptr<MetaCache> metaCache,
@@ -162,11 +174,11 @@ class MetaServerClientImpl : public MetaServerClient {
                             Inode *out, bool* streaming) override;
 
     MetaStatusCode BatchGetInodeAttr(uint32_t fsId,
-        std::set<uint64_t> *inodeIds,
+        const std::set<uint64_t> &inodeIds,
         std::list<InodeAttr> *attr) override;
 
     MetaStatusCode BatchGetXAttr(uint32_t fsId,
-        std::set<uint64_t> *inodeIds,
+        const std::set<uint64_t> &inodeIds,
         std::list<XAttr> *xattr) override;
 
     MetaStatusCode UpdateInode(const Inode &inode,
@@ -195,6 +207,20 @@ class MetaServerClientImpl : public MetaServerClient {
 
     MetaStatusCode DeleteInode(uint32_t fsId, uint64_t inodeid) override;
 
+    bool SplitRequestInodes(uint32_t fsId,
+        const std::set<uint64_t> &inodeIds,
+        std::vector<std::vector<uint64_t>> *inodeGroups) override;
+
+    void AsyncUpdateVolumeExtent(uint32_t fsId,
+                                 uint64_t inodeId,
+                                 const VolumeExtentList &extents,
+                                 MetaServerClientDone *done) override;
+
+    MetaStatusCode GetVolumeExtent(uint32_t fsId,
+                                   uint64_t inodeId,
+                                   bool streaming,
+                                   VolumeExtentList *extents) override;
+
  private:
     bool ParseS3MetaStreamBuffer(butil::IOBuf* buffer,
                                  uint64_t* chunkIndex,
@@ -208,9 +234,8 @@ class MetaServerClientImpl : public MetaServerClient {
     std::shared_ptr<MetaCache> metaCache_;
     std::shared_ptr<ChannelManager<MetaserverID>> channelManager_;
 
-    std::shared_ptr<StreamClient> streamClient_;
-
-    std::shared_ptr<MetaServerClientMetric> metaserverClientMetric_;
+    StreamClient streamClient_;
+    MetaServerClientMetric metric_;
 };
 }  // namespace rpcclient
 }  // namespace client

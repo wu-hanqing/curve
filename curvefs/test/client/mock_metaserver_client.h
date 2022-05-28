@@ -76,11 +76,11 @@ class MockMetaServerClient : public MetaServerClient {
             uint32_t fsId, uint64_t inodeid, Inode *out, bool* streaming));
 
     MOCK_METHOD3(BatchGetInodeAttr, MetaStatusCode(
-        uint32_t fsId, std::set<uint64_t> *inodeIds,
+        uint32_t fsId, const std::set<uint64_t> &inodeIds,
         std::list<InodeAttr> *attr));
 
     MOCK_METHOD3(BatchGetXAttr, MetaStatusCode(
-        uint32_t fsId, std::set<uint64_t> *inodeIds,
+        uint32_t fsId, const std::set<uint64_t> &inodeIds,
         std::list<XAttr> *xattr));
 
     MOCK_METHOD2(UpdateInode,
@@ -112,6 +112,19 @@ class MockMetaServerClient : public MetaServerClient {
             const InodeParam &param, Inode *out));
 
     MOCK_METHOD2(DeleteInode, MetaStatusCode(uint32_t fsId, uint64_t inodeid));
+
+    MOCK_METHOD3(SplitRequestInodes, bool(uint32_t fsId,
+        const std::set<uint64_t> &inodeIds,
+        std::vector<std::vector<uint64_t>> *inodeGroups));
+
+    MOCK_METHOD4(AsyncUpdateVolumeExtent,
+                 void(uint32_t,
+                      uint64_t,
+                      const VolumeExtentList &,
+                      MetaServerClientDone *));
+
+    MOCK_METHOD4(GetVolumeExtent,
+                 MetaStatusCode(uint32_t, uint64_t, bool, VolumeExtentList *));
 };
 
 }  // namespace rpcclient

@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <condition_variable>  // NOLINT
+#include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/common/process.h"
 #include "curvefs/src/common/define.h"
 #include "curvefs/src/common/rpc_stream.h"
@@ -541,12 +542,10 @@ TEST_F(MetastoreTest, test_inode) {
     updateRequest3.set_partitionid(partitionId);
     updateRequest3.set_fsid(fsId);
     updateRequest3.set_inodeid(createResponse.inode().inodeid());
-    VolumeExtentList volumeExtentList;
-    updateRequest3.mutable_volumeextentmap()->insert({0, volumeExtentList});
     S3ChunkInfoList s3ChunkInfoList;
     updateRequest3.mutable_s3chunkinfomap()->insert({0, s3ChunkInfoList});
     ret = metastore.UpdateInode(&updateRequest3, &updateResponse3);
-    ASSERT_EQ(updateResponse3.statuscode(), MetaStatusCode::PARAM_ERROR);
+    ASSERT_EQ(updateResponse3.statuscode(), MetaStatusCode::OK);
     ASSERT_EQ(updateResponse3.statuscode(), ret);
 
     // DELETE INODE
@@ -1487,6 +1486,37 @@ TEST_F(MetastoreTest, GetOrModifyS3ChunkInfo) {
         ASSERT_EQ(response.statuscode(), rc);
         ASSERT_EQ(response.mutable_s3chunkinfomap()->size(), 2);
     }
+
+    // CASE 4: GetOrModifyS3ChunkInfo success with unsupport streaming
+    // and without return s3chunkinfo
+    {
+        LOG(INFO) << "CASE 3: GetOrModifyS3ChunkInfo success"
+                  << " with unsupport streaming";
+        GetOrModifyS3ChunkInfoRequest request;
+        GetOrModifyS3ChunkInfoResponse response;
+        std::vector<uint64_t> chunkIndexs{ 1, 2 };
+        std::vector<S3ChunkInfoList> lists2add{
+            GenS3ChunkInfoList(100, 200),
+            GenS3ChunkInfoList(300, 400),
+        };
+
+        request.set_partitionid(partitionId);
+        request.set_fsid(fsId);
+        request.set_inodeid(inodeId);
+        request.set_supportstreaming(false);
+        request.set_returns3chunkinfomap(false);
+        for (size_t i = 0; i < chunkIndexs.size(); i++) {
+            request.mutable_s3chunkinfoadd()->insert(
+                { chunkIndexs[i], lists2add[i] });
+        }
+
+        std::shared_ptr<Iterator> iterator;
+        MetaStatusCode rc = metastore.GetOrModifyS3ChunkInfo(
+            &request, &response, &iterator);
+        ASSERT_EQ(rc, MetaStatusCode::OK);
+        ASSERT_EQ(response.statuscode(), rc);
+        ASSERT_EQ(response.mutable_s3chunkinfomap()->size(), 0);
+    }
 }
 
 TEST_F(MetastoreTest, GetInodeWithPaddingS3Meta) {
@@ -1649,6 +1679,19 @@ TEST_F(MetastoreTest, GetInodeWithPaddingS3Meta) {
         ASSERT_EQ(response.streaming(), false);
         ASSERT_EQ(inode->mutable_s3chunkinfomap()->size(), 3);
     }
+}
+
+TEST_F(MetastoreTest, TestUpdateVolumeExtent_PartitionNotFound) {
+    MetaStoreImpl metastore(nullptr, kvStorage_);
+
+    UpdateVolumeExtentRequest request;
+    UpdateVolumeExtentResponse response;
+
+    request.set_partitionid(100);
+
+    auto st = metastore.UpdateVolumeExtent(&request, &response);
+    ASSERT_EQ(st, MetaStatusCode::PARTITION_NOT_FOUND);
+    ASSERT_EQ(MetaStatusCode::PARTITION_NOT_FOUND, response.statuscode());
 }
 
 }  // namespace metaserver

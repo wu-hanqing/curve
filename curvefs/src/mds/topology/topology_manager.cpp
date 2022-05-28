@@ -632,6 +632,9 @@ void TopologyManager::CreatePartitions(const CreatePartitionRequest *request,
     auto partitionInfoList = response->mutable_partitioninfolist();
     response->set_statuscode(TopoStatusCode::TOPO_OK);
 
+    // get lock and avoid multiMountpoint create concurrently
+    NameLockGuard lock(createPartitionMutex_, std::to_string(fsId));
+
     while (partitionInfoList->size() < count) {
         if (topology_->GetAvailableCopysetNum()
                             < option_.minAvailableCopysetNum) {
@@ -693,7 +696,8 @@ void TopologyManager::CreatePartitions(const CreatePartitionRequest *request,
                 info->set_partitionid(partitionId);
                 info->set_start(idStart);
                 info->set_end(idEnd);
-                info->set_status(PartitionStatus::READONLY);
+                info->set_txid(0);
+                info->set_status(PartitionStatus::READWRITE);
             } else {
                 // TODO(wanghai): delete partition on metaserver
                 LOG(ERROR) << "Add partition failed after create partition."

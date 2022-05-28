@@ -28,9 +28,11 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "curvefs/proto/metaserver.pb.h"
 #include "curvefs/src/metaserver/partition_clean_manager.h"
 #include "curvefs/src/metaserver/copyset/copyset_node.h"
 #include "curvefs/src/metaserver/storage/converter.h"
+#include "src/common/concurrent/rw_lock.h"
 
 namespace curvefs {
 namespace metaserver {
@@ -42,13 +44,15 @@ using Key4S3ChunkInfoList = ::curvefs::metaserver::storage::Key4S3ChunkInfoList;
 MetaStoreImpl::MetaStoreImpl(copyset::CopysetNode* node,
                              std::shared_ptr<KVStorage> kvStorage)
     : copysetNode_(node),
-      kvStorage_(kvStorage),
+      kvStorage_(std::move(kvStorage)),
       streamServer_(std::make_shared<StreamServer>()) {}
 
 bool MetaStoreImpl::Load(const std::string& pathname) {
     // Load from raft snap file to memory
     WriteLockGuard writeLockGuard(rwLock_);
-    MetaStoreFStream fstream(&partitionMap_, kvStorage_);
+    MetaStoreFStream fstream(&partitionMap_, kvStorage_,
+                             copysetNode_->GetPoolId(),
+                             copysetNode_->GetCopysetId());
     auto succ = fstream.Load(pathname);
     if (!succ) {
         partitionMap_.clear();
@@ -73,7 +77,9 @@ void MetaStoreImpl::SaveBackground(const std::string& path,
                                    DumpFileClosure* child,
                                    OnSnapshotSaveDoneClosure* done) {
     LOG(INFO) << "Save metadata to file background.";
-    MetaStoreFStream fstream(&partitionMap_, kvStorage_);
+    MetaStoreFStream fstream(&partitionMap_, kvStorage_,
+                             copysetNode_->GetPoolId(),
+                             copysetNode_->GetCopysetId());
     bool succ = fstream.Save(path, child);
     LOG(INFO) << "Save metadata to file " << (succ ? "success" : "fail");
 
@@ -111,7 +117,7 @@ MetaStatusCode MetaStoreImpl::CreatePartition(
     const CreatePartitionRequest* request, CreatePartitionResponse* response) {
     WriteLockGuard writeLockGuard(rwLock_);
     MetaStatusCode status;
-    PartitionInfo partition = request->partition();
+    const auto& partition = request->partition();
     auto it = partitionMap_.find(partition.partitionid());
     if (it != partitionMap_.end()) {
         // keep idempotence
@@ -205,7 +211,7 @@ MetaStatusCode MetaStoreImpl::GetDentry(const GetDentryRequest* request,
                                         GetDentryResponse* response) {
     uint32_t fsId = request->fsid();
     uint64_t parentInodeId = request->parentinodeid();
-    std::string name = request->name();
+    const auto& name = request->name();
     auto txId = request->txid();
     ReadLockGuard readLockGuard(rwLock_);
     std::shared_ptr<Partition> partition = GetPartition(request->partitionid());
@@ -225,7 +231,7 @@ MetaStatusCode MetaStoreImpl::GetDentry(const GetDentryRequest* request,
     auto rc = partition->GetDentry(&dentry);
     response->set_statuscode(rc);
     if (rc == MetaStatusCode::OK) {
-        *response->mutable_dentry() = dentry;
+        *response->mutable_dentry() = std::move(dentry);
     }
     return rc;
 }
@@ -494,15 +500,6 @@ MetaStatusCode MetaStoreImpl::DeleteInode(const DeleteInodeRequest* request,
 
 MetaStatusCode MetaStoreImpl::UpdateInode(const UpdateInodeRequest* request,
                                           UpdateInodeResponse* response) {
-    uint32_t fsId = request->fsid();
-    uint64_t inodeId = request->inodeid();
-    if (!request->volumeextentmap().empty() &&
-        !request->s3chunkinfomap().empty()) {
-        LOG(ERROR) << "only one of type space info, choose volume or s3";
-        response->set_statuscode(MetaStatusCode::PARAM_ERROR);
-        return MetaStatusCode::PARAM_ERROR;
-    }
-
     ReadLockGuard readLockGuard(rwLock_);
     std::shared_ptr<Partition> partition = GetPartition(request->partitionid());
     if (partition == nullptr) {
@@ -536,15 +533,11 @@ MetaStatusCode MetaStoreImpl::GetOrModifyS3ChunkInfo(
                                            request->s3chunkinforemove(),
                                            request->returns3chunkinfomap(),
                                            iterator);
-    if (rc == MetaStatusCode::OK && !request->supportstreaming()) {
+    if (rc == MetaStatusCode::OK &&
+        !request->supportstreaming() &&
+        request->returns3chunkinfomap()) {
         rc = partition->PaddingInodeS3ChunkInfo(
             fsId, inodeId, response->mutable_s3chunkinfomap(), 0);
-    }
-
-    if (rc == MetaStatusCode::OK && !request->supportstreaming()) {
-        rc = partition->PaddingInodeS3ChunkInfo(
-            request->fsid(), request->inodeid(),
-            response->mutable_s3chunkinfomap(), 0);
     }
 
     response->set_statuscode(rc);
@@ -565,10 +558,10 @@ MetaStatusCode MetaStoreImpl::SendS3ChunkInfoByStream(
     std::shared_ptr<Iterator> iterator) {
     butil::IOBuf buffer;
     Key4S3ChunkInfoList key;
-    auto conv = std::make_shared<Converter>();
+    Converter conv;
     for (iterator->SeekToFirst(); iterator->Valid(); iterator->Next()) {
         std::string skey = iterator->Key();
-        if (!conv->ParseFromString(skey, &key)) {
+        if (!conv.ParseFromString(skey, &key)) {
             return MetaStatusCode::PARSE_FROM_STRING_FAILED;
         }
 
@@ -595,6 +588,46 @@ std::shared_ptr<Partition> MetaStoreImpl::GetPartition(uint32_t partitionId) {
     }
 
     return nullptr;
+}
+
+MetaStatusCode MetaStoreImpl::GetVolumeExtent(
+    const GetVolumeExtentRequest* request,
+    GetVolumeExtentResponse* response) {
+    ReadLockGuard guard(rwLock_);
+    auto partition = GetPartition(request->partitionid());
+    if (!partition) {
+        auto st = MetaStatusCode::PARTITION_NOT_FOUND;
+        response->set_statuscode(st);
+        return st;
+    }
+
+    std::vector<uint64_t> slices(request->sliceoffsets().begin(),
+                                 request->sliceoffsets().end());
+    auto st = partition->GetVolumeExtent(request->fsid(), request->inodeid(),
+                                         slices, response->mutable_slices());
+    if (st != MetaStatusCode::OK) {
+        response->clear_slices();
+    }
+
+    response->set_statuscode(st);
+    return st;
+}
+
+MetaStatusCode MetaStoreImpl::UpdateVolumeExtent(
+    const UpdateVolumeExtentRequest* request,
+    UpdateVolumeExtentResponse* response) {
+    ReadLockGuard guard(rwLock_);
+    auto partition = GetPartition(request->partitionid());
+    if (!partition) {
+        auto st = MetaStatusCode::PARTITION_NOT_FOUND;
+        response->set_statuscode(st);
+        return st;
+    }
+
+    auto st = partition->UpdateVolumeExtent(request->fsid(), request->inodeid(),
+                                            request->extents());
+    response->set_statuscode(st);
+    return st;
 }
 
 }  // namespace metaserver

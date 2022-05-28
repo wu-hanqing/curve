@@ -46,16 +46,18 @@ enum class ENTRY_TYPE {
     PARTITION,
     PENDING_TX,
     S3_CHUNK_INFO_LIST,
+    VOLUME_EXTENT,
     UNKNOWN,
 };
 
 using Pair = std::pair<ENTRY_TYPE, std::string>;
-static std::vector<Pair> pairs{
+static const std::vector<Pair> pairs{
     Pair(ENTRY_TYPE::INODE, "i"),
     Pair(ENTRY_TYPE::DENTRY, "d"),
     Pair(ENTRY_TYPE::PARTITION, "p"),
     Pair(ENTRY_TYPE::PENDING_TX, "t"),
     Pair(ENTRY_TYPE::S3_CHUNK_INFO_LIST, "s"),
+    Pair(ENTRY_TYPE::VOLUME_EXTENT, "v"),
     Pair(ENTRY_TYPE::UNKNOWN, "u"),
 };
 
@@ -144,28 +146,27 @@ static bool SaveToFile(const std::string& pathname,
 }
 
 template<typename Callback>
-static bool InvokeCallback(ENTRY_TYPE entryType,
+inline bool InvokeCallback(ENTRY_TYPE entryType,
                            uint32_t partitionId,
                            const std::string& key,
                            const std::string& value,
-                           Callback callback) {
-    if (!callback(entryType, partitionId, key, value)) {  // NOLINT
+                           Callback&& callback) {
+    if (!std::forward<Callback>(callback)(entryType, partitionId, key, value)) {
         LOG(ERROR) << "Invoke callback for entry failed.";
         return false;
     }
     return true;
 }
 
-#define CASE_TYPE_CALLBACK(TYPE) \
-case ENTRY_TYPE::TYPE: \
-    if (!InvokeCallback<Callback>( \
-        entryType, partitionId, key, value, callback)) { \
-        return false; \
-    } \
-    break
+#define CASE_TYPE_CALLBACK(TYPE)                                             \
+    case ENTRY_TYPE::TYPE:                                                   \
+        if (!InvokeCallback(entryType, partitionId, key, value, callback)) { \
+            return false;                                                    \
+        }                                                                    \
+        break
 
 template<typename Callback>
-static bool LoadFromFile(const std::string& pathname,
+inline bool LoadFromFile(const std::string& pathname,
                          Callback callback) {
     auto dumpfile = DumpFile(pathname);
     if (dumpfile.Open() != DUMPFILE_ERROR::OK) {
@@ -189,6 +190,7 @@ static bool LoadFromFile(const std::string& pathname,
             CASE_TYPE_CALLBACK(PARTITION);
             CASE_TYPE_CALLBACK(PENDING_TX);
             CASE_TYPE_CALLBACK(S3_CHUNK_INFO_LIST);
+            CASE_TYPE_CALLBACK(VOLUME_EXTENT);
             default:
                 LOG(ERROR) << "Unknown entry type, key = " << key;
                 return false;
@@ -207,7 +209,7 @@ class IteratorWrapper : public Iterator {
                     std::shared_ptr<Iterator> iterator)
         : entryType_(entryType),
           partitionId_(partitionId),
-          iterator_(iterator) {}
+          iterator_(std::move(iterator)) {}
 
     uint64_t Size() override {
         return iterator_->Size();

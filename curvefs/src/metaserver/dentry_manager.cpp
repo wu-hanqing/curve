@@ -36,7 +36,7 @@ DentryManager::DentryManager(std::shared_ptr<DentryStorage> dentryStorage,
 
 void DentryManager::Log4Dentry(const std::string& request,
                                const Dentry& dentry) {
-    VLOG(1) << "Receive " <<  request << " request, dentry = ("
+    VLOG(9) << "Receive " <<  request << " request, dentry = ("
             << dentry.ShortDebugString() << ")";
 }
 
@@ -50,13 +50,14 @@ void DentryManager::Log4Code(const std::string& request, MetaStatusCode rc) {
             << ", retCode = " << MetaStatusCode_Name(rc);
 
     if (succ) {
-        VLOG(1) << message.str();
+        VLOG(6) << message.str();
     } else {
         LOG(ERROR) << message.str();
     }
 }
 
-MetaStatusCode DentryManager::CreateDentry(const Dentry& dentry) {
+MetaStatusCode DentryManager::CreateDentry(const Dentry& dentry,
+                                           bool isLoadding) {
     Log4Dentry("CreateDentry", dentry);
     MetaStatusCode rc;
     // invoke only from snapshot loading
@@ -64,7 +65,7 @@ MetaStatusCode DentryManager::CreateDentry(const Dentry& dentry) {
         rc = dentryStorage_->HandleTx(DentryStorage::TX_OP_TYPE::PREPARE,
                                       dentry);
     } else {
-        rc = dentryStorage_->Insert(dentry);
+        rc = dentryStorage_->Insert(dentry, isLoadding);
     }
     Log4Code("CreateDentry", rc);
     return rc;

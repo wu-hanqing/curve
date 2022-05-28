@@ -85,6 +85,10 @@ struct MetaServerClientMetric {
     // partition
     InterfaceMetric createPartition;
 
+    // volume extent
+    InterfaceMetric updateVolumeExtent;
+    InterfaceMetric getVolumeExtent;
+
     explicit MetaServerClientMetric(const std::string &prefix_ = "")
         : prefix(!prefix_.empty() ? prefix_
                                   : "curvefs_metaserver_client_" +
@@ -102,7 +106,9 @@ struct MetaServerClientMetric {
           createRootInode(prefix, "createRootInode"),
           appendS3ChunkInfo(prefix, "appendS3ChunkInfo"),
           prepareRenameTx(prefix, "prepareRenameTx"),
-          createPartition(prefix, "createPartition") {}
+          createPartition(prefix, "createPartition"),
+          updateVolumeExtent(prefix, "updateVolumeExtent"),
+          getVolumeExtent(prefix, "getVolumeExtent") {}
 };
 
 struct InflightGuard {
@@ -187,13 +193,21 @@ struct ClientOpMetric {
 struct S3MultiManagerMetric {
     const std::string prefix;
     bvar::Adder<int64_t> fileManagerNum;
-    bvar::Adder<int64_t> chunkCacheNum;
+    bvar::Adder<int64_t> chunkManagerNum;
+    bvar::Adder<int64_t> writeDataCacheNum;
+    bvar::Adder<int64_t> writeDataCacheByte;
+    bvar::Adder<int64_t> readDataCacheNum;
+    bvar::Adder<int64_t> readDataCacheByte;
 
     explicit S3MultiManagerMetric(
         const std::string &prefix_ = "curvefs_client_manager")
         : prefix(prefix_) {
         fileManagerNum.expose_as(prefix, "file_manager_num");
-        chunkCacheNum.expose_as(prefix, "chunk_cache_num");
+        chunkManagerNum.expose_as(prefix, "chunk_manager_num");
+        writeDataCacheNum.expose_as(prefix, "write_data_cache_num");
+        writeDataCacheByte.expose_as(prefix, "write_data_cache_byte");
+        readDataCacheNum.expose_as(prefix, "read_data_cache_num");
+        readDataCacheByte.expose_as(prefix, "read_data_cache_byte");
     }
 };
 
@@ -204,12 +218,16 @@ struct FSMetric {
 
     InterfaceMetric userWrite;
     InterfaceMetric userRead;
+    bvar::LatencyRecorder userWriteIoSize;
+    bvar::LatencyRecorder userReadIoSize;
 
     explicit FSMetric(const std::string &name = "")
         : fsName(!name.empty() ? name
                                : prefix + curve::common::ToHexString(this)),
           userWrite(prefix, fsName + "_userWrite"),
-          userRead(prefix, fsName + "_userRead") {}
+          userRead(prefix, fsName + "_userRead"),
+          userWriteIoSize(prefix, fsName + "_userWriteIoSize"),
+          userReadIoSize(prefix, fsName + "_userReadIoSize") {}
 };
 
 struct S3Metric {

@@ -38,7 +38,17 @@ DECLARE_int32(health_check_interval);
 namespace curvefs {
 namespace client {
 namespace common {
+DECLARE_bool(useFakeS3);
+}  // namespace common
+}  // namespace client
+}  // namespace curvefs
+
+namespace curvefs {
+namespace client {
+namespace common {
 DEFINE_bool(enableCto, true, "acheieve cto consistency");
+DEFINE_bool(useFakeS3, false,
+            "Use fake s3 to inject more metadata for testing metaserver");
 
 void InitMdsOption(Configuration *conf, MdsOption *mdsOpt) {
     conf->GetValueFatalIfFail("mdsOpt.mdsMaxRetryMS", &mdsOpt->mdsMaxRetryMS);
@@ -137,6 +147,7 @@ void InitDiskCacheOption(Configuration *conf,
 }
 
 void InitS3Option(Configuration *conf, S3Option *s3Opt) {
+    conf->GetValueFatalIfFail("s3.fakeS3", &FLAGS_useFakeS3);
     conf->GetValueFatalIfFail("s3.fuseMaxSize",
                               &s3Opt->s3ClientAdaptorOpt.fuseMaxSize);
     conf->GetValueFatalIfFail("s3.pagesize",
@@ -159,8 +170,13 @@ void InitS3Option(Configuration *conf, S3Option *s3Opt) {
                               &s3Opt->s3ClientAdaptorOpt.nearfullRatio);
     conf->GetValueFatalIfFail("s3.baseSleepUs",
                               &s3Opt->s3ClientAdaptorOpt.baseSleepUs);
+    conf->GetValueFatalIfFail(
+        "s3.maxReadRetryIntervalMs",
+        &s3Opt->s3ClientAdaptorOpt.maxReadRetryIntervalMs);
+    conf->GetValueFatalIfFail("s3.readRetryIntervalMs",
+                              &s3Opt->s3ClientAdaptorOpt.readRetryIntervalMs);
     ::curve::common::InitS3AdaptorOptionExceptS3InfoOption(conf,
-                                                         &s3Opt->s3AdaptrOpt);
+                                                           &s3Opt->s3AdaptrOpt);
     InitDiskCacheOption(conf, &s3Opt->s3ClientAdaptorOpt.diskCacheOpt);
 }
 

@@ -21,13 +21,20 @@
  */
 
 
+#include <brpc/closure_guard.h>
+#include <brpc/controller.h>
 #include <brpc/server.h>
+#include <butil/iobuf.h>
+#include <google/protobuf/message.h>
+#include <google/protobuf/service.h>
 #include <gtest/gtest.h>
 #include <google/protobuf/util/message_differencer.h>
 
 #include <thread>
 
 #include "absl/cleanup/cleanup.h"
+#include "curvefs/proto/metaserver.pb.h"
+#include "curvefs/src/client/rpcclient/metacache.h"
 #include "curvefs/src/client/rpcclient/metaserver_client.h"
 #include "curvefs/test/client/rpcclient/mock_metacache.h"
 #include "curvefs/test/client/rpcclient/mock_metaserver_service.h"
@@ -1154,7 +1161,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetInodeAttr) {
                               SetArgPointee<3>(applyIndex), Return(true)));
 
     MetaStatusCode status = metaserverCli_.BatchGetInodeAttr(
-        fsid, &inodeIds, &attr);
+        fsid, inodeIds, &attr);
     ASSERT_EQ(MetaStatusCode::RPC_ERROR, status);
 
     // test1: batchGetInodeAttr ok
@@ -1176,7 +1183,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetInodeAttr) {
                   BatchGetInodeAttrResponse>)));
     EXPECT_CALL(*mockMetacache_.get(), UpdateApplyIndex(_, _));
 
-    status = metaserverCli_.BatchGetInodeAttr(fsid, &inodeIds, &attr);
+    status = metaserverCli_.BatchGetInodeAttr(fsid, inodeIds, &attr);
     ASSERT_EQ(MetaStatusCode::OK, status);
     ASSERT_EQ(attr.size(), 2);
     ASSERT_THAT(attr.begin()->inodeid(), AnyOf(inodeId1, inodeId2));
@@ -1192,7 +1199,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetInodeAttr) {
             DoAll(SetArgPointee<2>(response),
                   Invoke(SetRpcService<BatchGetInodeAttrRequest,
                   BatchGetInodeAttrResponse>)));
-    status = metaserverCli_.BatchGetInodeAttr(fsid, &inodeIds, &attr);
+    status = metaserverCli_.BatchGetInodeAttr(fsid, inodeIds, &attr);
     ASSERT_EQ(MetaStatusCode::NOT_FOUND, status);
 
     // test3: test response do not have applyindex
@@ -1208,7 +1215,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetInodeAttr) {
                   Invoke(SetRpcService<BatchGetInodeAttrRequest,
                   BatchGetInodeAttrResponse>)));
 
-    status = metaserverCli_.BatchGetInodeAttr(fsid, &inodeIds, &attr);
+    status = metaserverCli_.BatchGetInodeAttr(fsid, inodeIds, &attr);
     ASSERT_EQ(MetaStatusCode::RPC_ERROR, status);
 }
 
@@ -1256,7 +1263,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetXAttr) {
                               SetArgPointee<3>(applyIndex), Return(true)));
 
     MetaStatusCode status = metaserverCli_.BatchGetXAttr(
-        fsid, &inodeIds, &xattr);
+        fsid, inodeIds, &xattr);
     ASSERT_EQ(MetaStatusCode::RPC_ERROR, status);
 
     // test1: batchGetXAttr ok
@@ -1278,7 +1285,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetXAttr) {
                   BatchGetXAttrResponse>)));
     EXPECT_CALL(*mockMetacache_.get(), UpdateApplyIndex(_, _));
 
-    status = metaserverCli_.BatchGetXAttr(fsid, &inodeIds, &xattr);
+    status = metaserverCli_.BatchGetXAttr(fsid, inodeIds, &xattr);
     ASSERT_EQ(MetaStatusCode::OK, status);
     ASSERT_EQ(xattr.size(), 2);
     ASSERT_THAT(xattr.begin()->inodeid(), AnyOf(inodeId1, inodeId2));
@@ -1294,7 +1301,7 @@ TEST_F(MetaServerClientImplTest, test_BatchGetXAttr) {
             DoAll(SetArgPointee<2>(response),
                   Invoke(SetRpcService<BatchGetXAttrRequest,
                   BatchGetXAttrResponse>)));
-    status = metaserverCli_.BatchGetXAttr(fsid, &inodeIds, &xattr);
+    status = metaserverCli_.BatchGetXAttr(fsid, inodeIds, &xattr);
     ASSERT_EQ(MetaStatusCode::NOT_FOUND, status);
 
     // test3: test response do not have applyindex
@@ -1310,8 +1317,103 @@ TEST_F(MetaServerClientImplTest, test_BatchGetXAttr) {
                   Invoke(SetRpcService<BatchGetXAttrRequest,
                   BatchGetXAttrResponse>)));
 
-    status = metaserverCli_.BatchGetXAttr(fsid, &inodeIds, &xattr);
+    status = metaserverCli_.BatchGetXAttr(fsid, inodeIds, &xattr);
     ASSERT_EQ(MetaStatusCode::RPC_ERROR, status);
+}
+
+namespace {
+
+class FakeGetVolumeExtentService {
+ public:
+    FakeGetVolumeExtentService(const metaserver::GetVolumeExtentResponse &resp,
+                               StreamServer *svr)
+        : resp(&resp), streamingSvr(svr) {}
+
+    template <typename RequestT, typename ResponseT>
+    void operator()(google::protobuf::RpcController *baseCntl,
+                    const RequestT *request,
+                    ResponseT *response,
+                    google::protobuf::Closure *done) const {
+        if (!request->streaming()) {
+            brpc::ClosureGuard doneGuard(done);
+            response->CopyFrom(*resp);
+            return;
+        }
+
+        auto *cntl = static_cast<brpc::Controller *>(baseCntl);
+        auto conn = streamingSvr->Accept(cntl);
+        if (!conn) {
+            response->set_statuscode(MetaStatusCode::RPC_STREAM_ERROR);
+            done->Run();
+        }
+
+        response->set_statuscode(MetaStatusCode::OK);
+        done->Run();
+
+        Send(conn.get());
+    }
+
+ private:
+    void Send(StreamConnection* conn) const {
+        for (const auto& slice : resp->slices().slices()) {
+            butil::IOBuf data;
+            butil::IOBufAsZeroCopyOutputStream wrapper(&data);
+            slice.SerializeToZeroCopyStream(&wrapper);
+
+            conn->Write(data);
+        }
+
+        conn->WriteDone();
+    }
+
+    const metaserver::GetVolumeExtentResponse *resp;
+    StreamServer* streamingSvr;
+};
+
+}  // namespace
+
+TEST_F(MetaServerClientImplTest, TestGetVolumeExtent) {
+    const uint32_t fsid = 1;
+    const uint64_t ino = 2;
+    const uint32_t partitionID = 200;
+    const uint64_t applyIndex = 10;
+
+    for (auto streaming : {true, false}) {
+        metaserver::VolumeExtentList out;
+
+        EXPECT_CALL(*mockMetacache_, GetTarget(_, _, _, _, _))
+            .WillRepeatedly(
+                Invoke([&](uint32_t, uint64_t, CopysetTarget *target,
+                           uint64_t *applyindex, bool) {
+                    *target = target_;
+                    *applyindex = applyIndex;
+                    return true;
+                }));
+
+        EXPECT_CALL(*mockMetacache_.get(), GetPartitionIdByInodeId(_, _, _))
+            .WillRepeatedly(DoAll(SetArgPointee<2>(partitionID), Return(true)));
+        EXPECT_CALL(*mockMetacache_.get(), GetApplyIndex(_))
+            .WillOnce(Return(applyIndex));
+
+        metaserver::GetVolumeExtentResponse response;
+        response.set_statuscode(MetaStatusCode::OK);
+        auto *slice = response.mutable_slices()->add_slices();
+        slice->set_offset(0);
+        auto *ext = slice->add_extents();
+        ext->set_fsoffset(0);
+        ext->set_volumeoffset(0);
+        ext->set_length(4096);
+        ext->set_isused(true);
+
+        FakeGetVolumeExtentService fakeService(response, streamServer_.get());
+
+        EXPECT_CALL(mockMetaServerService_, GetVolumeExtent(_, _, _, _))
+            .WillOnce(Invoke(fakeService));
+
+        ASSERT_EQ(MetaStatusCode::OK,
+                  metaserverCli_.GetVolumeExtent(fsid, ino, streaming, &out));
+        ASSERT_EQ(1, out.slices_size());
+    }
 }
 
 }  // namespace rpcclient
