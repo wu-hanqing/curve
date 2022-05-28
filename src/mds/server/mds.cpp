@@ -450,13 +450,17 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
 
     // init snapshotCloneClient
     InitSnapshotCloneClient();
-
+    // init the Writer_Lock
+    Writer_LockOptions writerlockoptions{};
+    auto writerlock = std::make_shared<Writer_Lock>(writerlockoptions, etcdClient_);
+    //* the MDS start to init
     LOG_IF(FATAL, !kCurveFS.Init(nameServerStorage_, inodeIdGenerator,
                   chunkSegmentAllocate, cleanManager_,
                   fileRecordManager,
                   segmentAllocStatistic_,
                   curveFSOptions, topology_,
-                  snapshotCloneClient_))
+                  snapshotCloneClient_,
+                  writerlock))
         << "init FileRecordManager fail";
     LOG(INFO) << "init FileRecordManager success.";
 

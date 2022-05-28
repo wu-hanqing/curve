@@ -33,7 +33,7 @@ using curve::common::Authenticator;
 const char* kRootUserName = "root";
 
 template <typename T>
-void FillClienIpPortIfRegistered(T* request) {
+void FillClientIpPortIfRegistered(T* request) {
     auto& clientinfo = ClientDummyServerInfo::GetInstance();
 
     if (clientinfo.GetRegister()) {
@@ -45,13 +45,14 @@ void FillClienIpPortIfRegistered(T* request) {
 void MDSClientBase::OpenFile(const std::string& filename,
                              const UserInfo_t& userinfo,
                              OpenFileResponse* response,
+                             const OpenFlags& openflags,
                              brpc::Controller* cntl,
                              brpc::Channel* channel) {
     OpenFileRequest request;
     request.set_filename(filename);
     request.set_clientversion(curve::common::CurveVersion());
+    request.set_isfakewriter(openflags.fake);
     FillUserInfo(&request, userinfo);
-
     LOG(INFO) << "OpenFile: filename = " << filename
               << ", owner = " << userinfo.owner
               << ", log id = " << cntl->log_id();
@@ -103,7 +104,7 @@ void MDSClientBase::CloseFile(const std::string& filename,
     request.set_filename(filename);
     request.set_sessionid(sessionid);
     FillUserInfo(&request, userinfo);
-    FillClienIpPortIfRegistered(&request);
+    FillClientIpPortIfRegistered(&request);
 
     LOG(INFO) << "CloseFile: filename = " << filename
                 << ", owner = " << userinfo.owner
@@ -233,8 +234,9 @@ void MDSClientBase::RefreshSession(const std::string& filename,
     request.set_filename(filename);
     request.set_sessionid(sessionid);
     request.set_clientversion(curve::common::CurveVersion());
+    request.set_iswriter((userinfo.permission == 1 ? 1 : 0));
     FillUserInfo(&request, userinfo);
-    FillClienIpPortIfRegistered(&request);
+    FillClientIpPortIfRegistered(&request);
 
     LOG_EVERY_N(INFO, 10) << "RefreshSession: filename = " << filename
                           << ", owner = " << userinfo.owner

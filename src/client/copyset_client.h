@@ -102,7 +102,7 @@ class CopysetClient {
     * @param idinfo为chunk相关的id信息
     * @param sn:文件版本号
     * @param writeData:要写入的数据
-     *@param offset:写的偏移
+    * @param offset:写的偏移
     * @param length:写的长度
     * @param sourceInfo chunk克隆源信息
     * @param done:上一层异步回调的closure

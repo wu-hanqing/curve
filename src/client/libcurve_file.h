@@ -293,6 +293,7 @@ class FileClient {
     bool CheckAligned(off_t offset, size_t length) const;
 
  private:
+    uint64_t permission_;
     BthreadRWLock rwlock_;
 
     // 向上返回的文件描述符，对于QEMU来说，一个vdisk对应一个文件描述符

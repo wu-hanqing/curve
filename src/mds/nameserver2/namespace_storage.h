@@ -343,7 +343,10 @@ class NameServerStorageImp : public NameServerStorage {
                             const FileInfo * snapshotFileInfo) override;
 
     StoreStatus LoadSnapShotFile(std::vector<FileInfo> *snapShotFiles) override;
-
+    //* the Writer_Lock need the client_
+    std::shared_ptr<KVStorageClient> GetKVStorage() {
+        return this->client_;
+    }
  private:
     StoreStatus ListFileInternal(const std::string& startStoreKey,
                                  const std::string& endStoreKey,

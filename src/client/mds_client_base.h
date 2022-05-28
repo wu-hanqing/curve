@@ -103,6 +103,7 @@ class MDSClientBase {
     void OpenFile(const std::string& filename,
                   const UserInfo_t& userinfo,
                   OpenFileResponse* response,
+                  const OpenFlags& openflags,
                   brpc::Controller* cntl,
                   brpc::Channel* channel);
 

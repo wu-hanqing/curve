@@ -215,7 +215,7 @@ int FileClient::Open(const std::string& filename,
         return -1;
     }
 
-    int ret = fileserv->Open(filename, userinfo);
+    int ret = fileserv->Open(filename, userinfo, openflags);
     if (ret != LIBCURVE_ERROR::OK) {
         LOG(ERROR) << "Open file failed, filename: " << filename
                    << ", retCode: " << ret;
@@ -230,7 +230,7 @@ int FileClient::Open(const std::string& filename,
         WriteLockGuard lk(rwlock_);
         fileserviceMap_[fd] = fileserv;
     }
-
+    
     LOG(INFO) << "Open success, filname = " << filename << ", fd = " << fd;
     openedFileNum_ << 1;
 
@@ -315,6 +315,9 @@ int FileClient::Read(int fd, char* buf, off_t offset, size_t len) {
 }
 
 int FileClient::Write(int fd, const char* buf, off_t offset, size_t len) {
+    if(fileserviceMap_[fd]->CanWrite() == false) {
+        return -LIBCURVE_ERROR::PERMISSION_ERROR;
+    }
     // 长度为0，直接返回，不做任何操作
     if (len == 0) {
         return -LIBCURVE_ERROR::OK;
@@ -373,6 +376,9 @@ int FileClient::AioRead(int fd, CurveAioContext* aioctx,
 
 int FileClient::AioWrite(int fd, CurveAioContext* aioctx,
                          UserDataType dataType) {
+    if(fileserviceMap_[fd]->CanWrite() == false) {
+        return -LIBCURVE_ERROR::PERMISSION_ERROR;
+    }
     // 长度为0，直接返回，不做任何操作
     if (aioctx->length == 0) {
         return -LIBCURVE_ERROR::OK;

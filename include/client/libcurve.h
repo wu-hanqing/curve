@@ -358,7 +358,12 @@ typedef struct UserInfo {
     std::string password;
 
     UserInfo() = default;
-
+    uint64_t permission;
+    enum class job {
+        Reader, // 0
+        Writer, // 1
+        FakeWriter, // 2
+    };
     UserInfo(const std::string& own, const std::string& pwd = "")
       : owner(own), password(pwd) {}
 
@@ -373,8 +378,9 @@ inline bool operator==(const UserInfo& lhs, const UserInfo& rhs) {
 
 struct OpenFlags {
     bool exclusive;
-
-    OpenFlags() : exclusive(true) {}
+    //* fakewriter, default false it is normal client
+    bool fake;
+    OpenFlags() : exclusive(true), fake(false) {}
 };
 
 class CurveClient {

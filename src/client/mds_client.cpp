@@ -249,12 +249,13 @@ void MDSClient::UnInitialize() {
 
 LIBCURVE_ERROR MDSClient::OpenFile(const std::string &filename,
                                    const UserInfo_t &userinfo, FInfo_t *fi,
-                                   LeaseSession *lease) {
+                                   LeaseSession *lease,
+                                   const OpenFlags& openflags) {
     auto task = RPCTaskDefine {
         OpenFileResponse response;
         mdsClientMetric_.openFile.qps.count << 1;
         LatencyGuard lg(&mdsClientMetric_.openFile.latency);
-        MDSClientBase::OpenFile(filename, userinfo, &response, cntl, channel);
+        MDSClientBase::OpenFile(filename, userinfo, &response, openflags, cntl, channel);
 
         if (cntl->Failed()) {
             mdsClientMetric_.openFile.eps.count << 1;

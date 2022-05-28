@@ -204,8 +204,7 @@ class FileRecordManager {
     std::set<butil::EndPoint> ListAllClient() const;
 
     virtual bool FindFileMountPoint(const std::string& fileName,
-                                    std::vector<butil::EndPoint>* eps) const;
-
+                                    std::vector<butil::EndPoint>* eps) const;                             
  private:
     /**
      * @brief Function for periodic scanning, it deletes timed-out file records

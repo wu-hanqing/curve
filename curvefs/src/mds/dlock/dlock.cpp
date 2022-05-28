@@ -126,13 +126,19 @@ bool DLock::CheckOwner(const std::string& name,
 size_t DLock::Hash(const std::string& key) {
     return std::hash<std::string>{}(key);
 }
-
+//* 这里将 name => key
 std::string DLock::EncodeKey(const std::string& name) {
+    //* key = "dlock_01"
     std::string key = DLOCK_KEY_PREFIX;
+    //* prefixLen = 8
     size_t prefixLen = DLOCK_PREFIX_LENGTH;
+    //*
     uint64_t num = static_cast<uint64_t>(Hash(name));
+    
     key.resize(prefixLen + sizeof(uint64_t));
+    
     EncodeBigEndian(&(key[prefixLen]), num);
+    
     return key;
 }
 

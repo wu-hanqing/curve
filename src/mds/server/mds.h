@@ -57,6 +57,7 @@
 #include "src/common/channel_pool.h"
 #include "src/mds/schedule/scheduleService/scheduleService.h"
 #include "src/common/concurrent/dlock.h"
+#include "src/mds/nameserver2/writer_lock.h"
 
 using ::curve::mds::topology::TopologyChunkAllocatorImpl;
 using ::curve::mds::topology::TopologyServiceImpl;

@@ -90,6 +90,8 @@ enum LIBCURVE_ERROR {
     SNAPSTHO_FROZEN = 29,
     // You must retry it until success
     RETRY_UNTIL_SUCCESS = 30,
+    // the client permission is not right
+    PERMISSION_ERROR = 31,
     // unknown error
     UNKNOWN                 = 100
 };
