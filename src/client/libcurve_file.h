@@ -293,6 +293,7 @@ class FileClient {
     bool CheckAligned(off_t offset, size_t length) const;
 
  private:
+    // 这个是多余的
     uint64_t permission_;
     BthreadRWLock rwlock_;
 

@@ -168,6 +168,7 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
     /*
       writer 可写，polardb 的那个工具也可写
     */
+   // 这个可以先不用做
     bool CanWrite() {
         return this->finfo_.userinfo.permission == 1 || this->finfo_.userinfo.permission == 2;
     }

@@ -358,6 +358,8 @@ typedef struct UserInfo {
     std::string password;
 
     UserInfo() = default;
+
+    // 这个permission和job看起来好像没用？
     uint64_t permission;
     enum class job {
         Reader, // 0
@@ -375,6 +377,20 @@ typedef struct UserInfo {
 inline bool operator==(const UserInfo& lhs, const UserInfo& rhs) {
     return lhs.owner == rhs.owner && lhs.password == rhs.password;
 }
+
+// 这里有个想法使用uint64_t来表示一个openflags，每个bit表示表示一个不同的flags
+// 类似man (2) open的方式
+// using OpenFlags = uint64_t;
+// or
+// typedef uint64_t OpenFlags
+// 
+// enum CurveOpenFlags {
+//     kOpenExclusive = 1 << 0;
+//     kOpenReadOnly = 1 << 1;
+//     KOpenReadWrite = 1 << 2;
+//     kOpenForceWrite = 1 << 3;  // 这个可以对应fakewriter
+//     ...
+// };
 
 struct OpenFlags {
     bool exclusive;

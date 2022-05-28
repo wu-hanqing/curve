@@ -1595,6 +1595,8 @@ StatusCode CurveFS::GetSnapShotFileSegment(
 *   4)         => 正常 => 他是 reader
 *   5)         => 不正常 => 他是 writer              
 */
+// 这里也可以先简化一下，权限的申请时客户端主动的，而不是MDS分配的
+// 如果客户端申请称为writer，就进行上述的判断，如果已经有writer了，就返回类似permission deny的错误就行了
 StatusCode CurveFS::OpenFile(const std::string &fileName,
                              const std::string &clientIP,
                              ProtoSession *protoSession,
@@ -1660,6 +1662,8 @@ StatusCode CurveFS::CloseFile(const std::string &fileName,
                    << ", errName = " << StatusCode_Name(ret);
         return  ret;
     }
+    // 这里最好是writer在close的时候调用
+    // writer在close的时候，rpc里面加一个参数标识一下自己是writer，然后这里才进行这一步的处理
     writerlock_->Unlock(fileName, clientIP, clientPort);
     // remove file record
     fileRecordManager_->RemoveFileRecord(fileName, clientIP, clientPort);

@@ -83,6 +83,7 @@ class Writer_Lock {
                                  const std::string& ClientIp,
                                  uint32_t ClientPort,
                                  uint64_t Date);
+    // 这个好像也没人调用
     bool ClientInfoToValue(const std::string& ClientIp, 
                            uint32_t ClientPort,
                            uint64_t Date,

@@ -122,6 +122,7 @@ Writer_Lock::Writer_Lock(const Writer_LockOptions& options,
                          : w_lockoptions_(options),
                            etcdclient_(etcdclient) {}
 
+// 这里也可以先简化一下，权限的申请时客户端主动的，而不是MDS分配的
 Permission Writer_Lock::Lock(const std::string& filename,
                              const std::string& clientip,
                              uint32_t clientport,

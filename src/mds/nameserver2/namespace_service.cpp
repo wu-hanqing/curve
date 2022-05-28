@@ -1345,6 +1345,13 @@ void NameSpaceService::OpenFile(::google::protobuf::RpcController* controller,
     brpc::Controller* cntl = static_cast<brpc::Controller*>(controller);
     ExpiredTime expiredTime;
     //* mds use this clientIp and clientPort to save which client Writer or FakeWriter
+    // 这里的ip和port有可能是会变的
+    // 可以参考下refreshsession里面，客户端自己填写ip&port的方式
+    // refreshsession的rpc请求在
+    // proto/nameserver2.proto:L466 message RefreshSessionRequest
+    // 
+    // 客户端的发送在
+    // src/client/mds_client_base.cpp:L239 FillClientIpPortIfRegistered
     std::string clientIP = butil::ip2str(cntl->remote_side().ip).c_str();
     uint32_t clientPort = cntl->remote_side().port;
 
@@ -1621,6 +1628,7 @@ void NameSpaceService::RefreshSession(
         clientVersion,
         fileInfo);
     //* 只有当 client 认为自己是 Writer 才去更新 writer 的时间
+    // 这个可以放到kCurveFS.RefreshSession里面去处理
     if(request->iswriter()) {
       kCurveFS.UpdateEtcdWriterLastTime(request->filename(), clientIP, clientPort, request->date());
     }
