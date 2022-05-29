@@ -196,8 +196,8 @@ TEST(InflightRPCTest, FileCloseTest) {
 
             LeaseOption lopt;
             lopt.mdsRefreshTimesPerLease = 1;
-            UserInfo_t userinfo("test", "");
-            LeaseExecutor lease(lopt, userinfo, nullptr, iomanager);
+            UserInfo userinfo("test", "");
+            LeaseExecutor lease(lopt, nullptr, iomanager);
 
             for (int j = 0; j < 5; j++) {
                 // 测试iomanager退出之后，lease再去调用其scheduler资源不会crash

@@ -1,0 +1,13 @@
+load("//:copts.bzl", "CURVE_TEST_COPTS")
+
+cc_binary(
+    name = "client_rw_test",
+    srcs = [
+        "read_write_mount.cc",
+    ],
+    copts = CURVE_TEST_COPTS + ["-std=c++14"],
+    deps = [
+        "//include/client:include_client",
+        "//src/client:curve_client",
+    ],
+)

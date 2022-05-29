@@ -172,19 +172,40 @@ void FileClient::UnInit() {
     inited_ = false;
 }
 
+// int FileClient::Open(const std::string& filename,
+//                      const UserInfo& userinfo,
+//                      const OpenFlags& openflags) {
+//     int flags = CURVE_RDWR;
+//     if (openflags.exclusive) {
+//         flags |= CURVE_EXCLUSIVE;
+//     } else {
+//         flags |= CURVE_SHARED;
+//     }
+
+//     return Open(filename, userinfo, flags);
+// }
+
 int FileClient::Open(const std::string& filename,
-                     const UserInfo_t& userinfo,
-                     const OpenFlags& openflags) {
-    LOG(INFO) << "Opening filename: " << filename << ", flags: " << openflags;
+                     const UserInfo& userinfo,
+                     int flags) {
+    LOG(INFO) << "Opening filename: " << filename << ", flags: `"
+              << OpenflagsToString(flags) << "`";
+
+    if (!CheckOpenflags(flags)) {
+        LOG(ERROR) << "Failed to check open flags";
+        return -LIBCURVE_ERROR::PARAM_ERROR;
+    }
+
     FileInstance* fileserv = FileInstance::NewInitedFileInstance(
         clientconfig_.GetFileServiceOption(), mdsClient_, filename, userinfo,
-        openflags, false);
+        /*readonly*/ false);
+
     if (fileserv == nullptr) {
         LOG(ERROR) << "NewInitedFileInstance fail";
         return -1;
     }
 
-    int ret = fileserv->Open(filename, userinfo);
+    int ret = fileserv->Open(flags);
     if (ret != LIBCURVE_ERROR::OK) {
         LOG(ERROR) << "Open file failed, filename: " << filename
                    << ", retCode: " << ret;
@@ -200,7 +221,7 @@ int FileClient::Open(const std::string& filename,
         fileserviceMap_[fd] = fileserv;
     }
 
-    LOG(INFO) << "Open success, filname = " << filename << ", fd = " << fd;
+    LOG(INFO) << "Open success, filename = " << filename << ", fd = " << fd;
     openedFileNum_ << 1;
 
     return fd;
@@ -209,7 +230,8 @@ int FileClient::Open(const std::string& filename,
 int FileClient::Open4ReadOnly(const std::string& filename,
                               const UserInfo_t& userinfo, bool disableStripe) {
     FileInstance* instance = FileInstance::Open4Readonly(
-        clientconfig_.GetFileServiceOption(), mdsClient_, filename, userinfo);
+        clientconfig_.GetFileServiceOption(), mdsClient_, filename, userinfo,
+        CURVE_EXCLUSIVE | CURVE_RDONLY);
 
     if (instance == nullptr) {
         LOG(ERROR) << "Open4Readonly failed, filename = " << filename;

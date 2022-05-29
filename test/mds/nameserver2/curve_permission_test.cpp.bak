@@ -1,0 +1,234 @@
+/*
+ *  Copyright (c) 2020 NetEase Inc.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+/*
+ * Project: curve
+ * Created Date: 2022 06 01 
+ * Author: YangFan (fansehep)
+ */
+#include <atomic>
+#include <chrono>
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include "src/mds/nameserver2/curvefs.h"
+#include "src/mds/nameserver2/idgenerator/inode_id_generator.h"
+#include "src/mds/nameserver2/namespace_storage.h"
+#include "src/common/timeutility.h"
+#include "src/mds/common/mds_define.h"
+
+#include "test/mds/mock/mock_etcdclient.h"
+#include "test/mds/nameserver2/mock/mock_writer_lock.h"
+#include "test/mds/nameserver2/mock/mock_namespace_storage.h"
+#include "test/mds/nameserver2/mock/mock_inode_id_generator.h"
+#include "test/mds/nameserver2/mock/mock_chunk_allocate.h"
+#include "test/mds/nameserver2/mock/mock_clean_manager.h"
+#include "test/mds/nameserver2/mock/mock_snapshotclone_client.h"
+#include "test/mds/nameserver2/mock/mock_file_record_manager.h"
+#include "test/mds/mock/mock_alloc_statistic.h"
+#include "test/mds/mock/mock_topology.h"
+#include "src/mds/nameserver2/writer_lock.h"
+using ::testing::AtLeast;
+using ::testing::StrEq;
+using ::testing::_;
+using ::testing::Return;
+using ::testing::ReturnArg;
+using ::testing::DoAll;
+using ::testing::SetArgPointee;
+using ::testing::SaveArg;
+using curve::common::Authenticator;
+
+using curve::common::TimeUtility;
+using curve::mds::topology::MockTopology;
+using curve::mds::snapshotcloneclient::MockSnapshotCloneClient;
+using curve::mds::snapshotcloneclient::DestFileInfo;
+
+namespace curve {
+namespace mds {
+
+class CurveFSTest: public ::testing::Test {
+ protected:
+    void SetUp() override {
+        storage_ = std::make_shared<MockNameServerStorage>();
+        inodeIdGenerator_ = std::make_shared<MockInodeIDGenerator>();
+        mockChunkAllocator_ = std::make_shared<MockChunkAllocator>();
+
+        mockcleanManager_ = std::make_shared<MockCleanManager>();
+        topology_ = std::make_shared<MockTopology>();
+        snapshotClient_ = std::make_shared<MockSnapshotCloneClient>();
+        // session repo已经mock，数据库相关参数不需要
+        fileRecordManager_ = std::make_shared<MockFileRecordManager>();
+        fileRecordOptions_.fileRecordExpiredTimeUs = 5 * 1000;
+        fileRecordOptions_.scanIntervalTimeUs = 1 * 1000;
+
+        authOptions_.rootOwner = "root";
+        authOptions_.rootPassword = "root_password";
+
+        curveFSOptions_.defaultChunkSize = 16 * kMB;
+        curveFSOptions_.defaultSegmentSize = 1 * kGB;
+        curveFSOptions_.minFileLength = 10 * kGB;
+        curveFSOptions_.maxFileLength = 20 * kTB;
+        curveFSOptions_.authOptions = authOptions_;
+        curveFSOptions_.fileRecordOptions = fileRecordOptions_;
+        Writer_LockOptions w_options = {};
+        this->mocketcdclient_ = std::make_shared<MockEtcdClient>();
+        this->mockwriterlock_ = std::make_shared<MockWriter_Lock>(w_options, mocketcdclient_);
+        curvefs_ = &kCurveFS;
+
+        allocStatistic_ = std::make_shared<MockAllocStatistic>();
+        FileInfo fileInfo;
+        fileInfo.set_parentid(ROOTINODEID);
+        fileInfo.set_id(RECYCLEBININODEID);
+        fileInfo.set_filename(RECYCLEBINDIRNAME);
+        fileInfo.set_filetype(FileType::INODE_DIRECTORY);
+        fileInfo.set_owner(authOptions_.rootOwner);
+        EXPECT_CALL(*storage_, GetFile(_, _, _))
+            .Times(1)
+            .WillOnce(DoAll(SetArgPointee<2>(fileInfo),
+                Return(StoreStatus::OK)));
+
+        curvefs_->Init(storage_, inodeIdGenerator_, mockChunkAllocator_,
+                        mockcleanManager_,
+                        fileRecordManager_,
+                        allocStatistic_,
+                        curveFSOptions_,
+                        topology_,
+                        snapshotClient_,
+                        mockwriterlock_);
+        DefaultSegmentSize = curvefs_->GetDefaultSegmentSize();
+        kMiniFileLength = curvefs_->GetMinFileLength();
+        kMaxFileLength = curvefs_->GetMaxFileLength();
+        curvefs_->Run();
+    }
+
+    void TearDown() override {
+        curvefs_->Uninit();
+    }
+
+    CurveFS *curvefs_;
+    std::shared_ptr<MockNameServerStorage> storage_;
+    std::shared_ptr<MockInodeIDGenerator> inodeIdGenerator_;
+    std::shared_ptr<MockChunkAllocator> mockChunkAllocator_;
+
+    std::shared_ptr<MockCleanManager> mockcleanManager_;
+    std::shared_ptr<MockFileRecordManager> fileRecordManager_;
+    std::shared_ptr<MockAllocStatistic> allocStatistic_;
+    std::shared_ptr<MockTopology> topology_;
+    std::shared_ptr<MockSnapshotCloneClient> snapshotClient_;
+    std::shared_ptr<MockEtcdClient> mocketcdclient_;
+    std::shared_ptr<MockWriter_Lock> mockwriterlock_;
+    struct FileRecordOptions fileRecordOptions_;
+    struct RootAuthOption authOptions_;
+    struct CurveFSOption curveFSOptions_;
+    uint64_t DefaultSegmentSize;
+    uint64_t kMiniFileLength;
+    uint64_t kMaxFileLength;
+};
+
+
+//*  带权限的open
+TEST_F(CurveFSTest, testOpenFile_Permission) {
+    curvefs_->CreateFile("/file1", "moonlight_knight", FileType::INODE_PAGEFILE, 
+        kMiniFileLength, 0, 0);
+  //* 单Writer, 后多reader看是否可以成功挂载
+    {
+        ProtoSession protosession;
+        FileInfo fileinfo;
+        fileinfo.set_filetype(FileType::INODE_PAGEFILE);
+        //* 1 client want to be writer, 5 clients want to be reader
+        EXPECT_CALL(*storage_, GetFile(_, _, _))
+            .Times(6);
+        EXPECT_CALL(*mocketcdclient_, Get(_, _))
+            .Times(1);    
+        uint64_t permission = 0;
+        auto tp = std::chrono::time_point_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now());
+        auto now_date = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            tp.time_since_epoch())
+                            .count();
+        auto rf =
+            curvefs_->OpenFile("/file1", "127.0.0.1", &protosession, &fileinfo,
+                               nullptr, 23, &permission, now_date, true);
+        ASSERT_EQ(rf, StatusCode::kOK);
+        ASSERT_EQ(permission, 1);
+        LOG(INFO) << "IP : 127.0.0.1 "
+                  << "to be Writer ";
+        std::vector<std::thread> threads;
+        uint64_t perms[5] = {0};
+        for (auto i = 0; i < 5; i++) {
+            threads.emplace_back([&, i] () {
+                //* don't want to be Writer
+                auto idx = i;
+                auto batman = curvefs_->OpenFile(
+                    "/file1", "127.0.0.3", &protosession, &fileinfo, nullptr,
+                    12 + idx, &perms[idx], now_date, false);
+                ASSERT_EQ(batman, StatusCode::kOK);
+                LOG(INFO) << "127.0.0.3 : " << 12 + idx << " is Reader";
+                ASSERT_EQ(perms[idx], 0);
+            });
+        }
+        for (auto& iter : threads) {
+            if (iter.joinable()) {
+                iter.join();
+            }
+        }
+    }
+
+    return;
+
+    //* 5 clients at the same time to open file, only  one the first open client can be writer
+    {
+        ProtoSession protosession;
+        FileInfo fileinfo;
+        fileinfo.set_filetype(FileType::INODE_PAGEFILE);
+        EXPECT_CALL(*storage_, GetFile(_, _, _))
+            .Times(5);
+        EXPECT_CALL(*mocketcdclient_, Get(_, _))
+            .Times(10);
+        EXPECT_CALL(*mocketcdclient_, Put(_, _))
+            .Times(10);
+        uint64_t perms[5] = {0};
+        std::atomic<uint32_t> n_onewriter = {0};
+        std::vector<std::thread> threads;
+        for (auto i = 0; i < 5; ++i) {
+            threads.emplace_back([&, i] () {
+            auto tp = std::chrono::time_point_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now());
+            auto now_date = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            tp.time_since_epoch())
+                            .count();
+                auto spiderman = curvefs_->OpenFile(
+                    "/file1", "127.0.0.4", &protosession, &fileinfo, nullptr,
+                    12 + i, &perms[i], now_date, true);
+                ASSERT_EQ(spiderman, StatusCode::kOK);
+                if (perms[i] == 1) {
+                    LOG(INFO) << "127.0.0.4 : " << 12 + i << " is Writer";
+                    n_onewriter++;
+                } else {
+                    LOG(INFO) << "127.0.0.4 : " << 12 + i << " is Reader";
+                }
+            });
+        }
+        for (auto& iter : threads) {
+            if (iter.joinable()) {
+                iter.join();
+            }
+        }
+        ASSERT_EQ(n_onewriter, 1);
+    }
+}
+
+}
+}

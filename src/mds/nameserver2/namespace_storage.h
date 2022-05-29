@@ -46,7 +46,7 @@ enum class StoreStatus {
     KeyNotExist,
     InternalError,
 };
-std::ostream& operator << (std::ostream & os, StoreStatus &s);
+std::ostream& operator << (std::ostream & os, const StoreStatus &s);
 
 // TODO(hzsunjianliang): may be storage need high level abstraction
 // put the encoding internal, not external

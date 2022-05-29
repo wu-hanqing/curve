@@ -31,7 +31,7 @@ using ::curve::common::SNAPSHOTFILEINFOKEYEND;
 namespace curve {
 namespace mds {
 
-std::ostream& operator << (std::ostream & os, StoreStatus &s) {
+std::ostream& operator << (std::ostream & os, const StoreStatus &s) {
     os << static_cast<std::underlying_type<StoreStatus>::type>(s);
     return os;
 }

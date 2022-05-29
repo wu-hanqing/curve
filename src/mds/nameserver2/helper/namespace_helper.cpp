@@ -31,6 +31,13 @@ using ::curve::common::SNAPSHOTFILEINFOKEYPREFIX;
 using ::curve::common::SEGMENTKEYLEN;
 using ::curve::common::SEGMENTINFOKEYPREFIX;
 using ::curve::common::SEGMENTALLOCSIZEKEY;
+// using ::curve::common::DISCARDSEGMENTKEYLEN;
+// using ::curve::common::DISCARDSEGMENTKEYPREFIX;
+// using ::curve::common::DISCARDSEGMENTKEYEND;
+using ::curve::common::FILEWRITERKEYPREFIX;
+using ::curve::common::FILEWRITERKEYEND;
+
+using ::curve::common::EncodeBigEndian;
 
 namespace curve {
 namespace mds {
@@ -132,5 +139,17 @@ bool NameSpaceStorageCodec::DecodeSegmentAllocValue(
 
     return true;
 }
+
+std::string NameSpaceStorageCodec::EncodeFileWriterKey(uint64_t inodeId) {
+    std::string key;
+    key.resize(COMMON_PREFIX_LENGTH + sizeof(inodeId));
+
+    memcpy(&(key[0]), FILEWRITERKEYPREFIX, COMMON_PREFIX_LENGTH);
+    static_assert(COMMON_PREFIX_LENGTH == 2, "");
+    EncodeBigEndian(&(key[2]), inodeId);
+
+    return key;
+}
+
 }   // namespace mds
 }   // namespace curve

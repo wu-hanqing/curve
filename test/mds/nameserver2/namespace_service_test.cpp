@@ -106,6 +106,7 @@ class NameSpaceServiceTest : public ::testing::Test {
                         fileRecordManager_,
                         allocStatistic_,
                         curveFSOptions, topology_,
+                        nullptr,
                         nullptr);
 
         ASSERT_EQ(curveFSOptions.defaultChunkSize,

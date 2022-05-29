@@ -67,6 +67,9 @@ void MDS::InitMdsOptions(std::shared_ptr<Configuration> conf) {
 
     conf_->GetValueFatalIfFail(
         "mds.filelock.bucketNum", &options_.mdsFilelockBucketNum);
+
+    options_.fileWriterLockOptions.ttlUs =
+        options_.fileRecordOptions.fileRecordExpiredTimeUs;
 }
 
 void MDS::StartDummy() {
@@ -428,12 +431,16 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
     // init snapshotCloneClient
     InitSnapshotCloneClient();
 
+    fileWriterLockMgr_ = std::make_shared<FileWriterLockManager>(
+        options_.fileWriterLockOptions, etcdClient_);
+
     LOG_IF(FATAL, !kCurveFS.Init(nameServerStorage_, inodeIdGenerator,
                   chunkSegmentAllocate, cleanManager_,
                   fileRecordManager,
                   segmentAllocStatistic_,
                   curveFSOptions, topology_,
-                  snapshotCloneClient_))
+                  snapshotCloneClient_,
+                  fileWriterLockMgr_))
         << "init FileRecordManager fail";
     LOG(INFO) << "init FileRecordManager success.";
 
@@ -463,7 +470,6 @@ void MDS::InitCurveFSOptions(CurveFSOption *curveFSOptions) {
         "mds.curvefs.minFileLength", &curveFSOptions->minFileLength);
     conf_->GetValueFatalIfFail(
         "mds.curvefs.maxFileLength", &curveFSOptions->maxFileLength);
-    FileRecordOptions fileRecordOptions;
     InitFileRecordOptions(&curveFSOptions->fileRecordOptions);
 
     RootAuthOption authOptions;

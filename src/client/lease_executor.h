@@ -52,7 +52,7 @@ struct LeaseRefreshResult {
         NOT_EXIST
     };
     Status status;
-    FInfo_t finfo;
+    FInfo finfo;
 };
 
 /**
@@ -70,8 +70,9 @@ class LeaseExecutor {
      * @param: mdsclient是与mds续约的client
      * @param: iomanager会在续约失败或者版本变更的时候进行io调度
      */
-    LeaseExecutor(const LeaseOption& leaseOpt, const UserInfo& userinfo,
-                  MDSClient* mdscllent, IOManager4File* iomanager);
+    LeaseExecutor(const LeaseOption& leaseOpt,
+                  MDSClient* mdsclient,
+                  IOManager4File* iomanager);
 
     ~LeaseExecutor();
 
@@ -82,7 +83,7 @@ class LeaseExecutor {
      * @param: lease为续约的lease信息
      * @return: 成功返回true，否则返回false
      */
-    bool Start(const FInfo_t& fi, const LeaseSession_t&  lease);
+    bool Start(const FInfo& fi, const LeaseSession_t&  lease);
 
     /**
      * 停止续约
@@ -130,13 +131,13 @@ class LeaseExecutor {
 
  private:
     // 与mds进行lease续约的文件名
-    std::string             fullFileName_;
+    // std::string             fullFileName_;
 
     // 用于续约的client
     MDSClient*              mdsclient_;
 
     // 用于发起refression的user信息
-    UserInfo_t              userinfo_;
+    // UserInfo_t              userinfo_;
 
     // IO管理者，当文件需要更新版本信息或者disable io的时候调用其接口
     IOManager4File*         iomanager_;
@@ -155,9 +156,14 @@ class LeaseExecutor {
 
     // refresh session定时任务，会间隔固定时间执行一次
     std::unique_ptr<RefreshSessionTask> task_;
+
+    // std::string openId_;
+    // int openflags_;
+
+    const FInfo* fileInfo_;
 };
 
-// RefreshSessin定期任务
+// RefreshSession定期任务
 // 利用brpc::PeriodicTaskManager进行管理
 // 定时器触发时调用OnTriggeringTask，根据返回值决定是否继续定时触发
 // 如果不再继续触发，调用OnDestroyingTask进行清理操作

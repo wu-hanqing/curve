@@ -141,7 +141,7 @@ cc_test(
     name = "libcurve_client_unittest",
     srcs = [
         "libcurve_client_unittest.cpp"
-    ],
+    ]),
     copts = COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],
@@ -158,7 +158,7 @@ cc_test(
     name = "client_libcbd_unittest",
     srcs = [
         "libcbd_libcurve_test.cpp"
-    ],
+    ]),
     copts = COPTS,
     defines = ["UNIT_TEST"],
     linkopts = ["-lfiu"],
@@ -188,7 +188,7 @@ cc_test(
     name = "client_session_unittest",
     srcs = [
         "client_session_unittest.cpp"
-    ],
+    ]),
     copts = COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],

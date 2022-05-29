@@ -107,8 +107,7 @@ class IOTrackerSplitorTest : public ::testing::Test {
 
         mdsclient_ = std::make_shared<MDSClient>();
         mdsclient_->Initialize(fopt.metaServerOpt);
-        fileinstance_->Initialize("/test", mdsclient_, userinfo, OpenFlags{},
-                                  fopt);
+        fileinstance_->Initialize("/test", mdsclient_, userinfo, fopt);
         InsertMetaCache();
 
         SourceReader::GetInstance().SetOption(fopt);
@@ -174,7 +173,7 @@ class IOTrackerSplitorTest : public ::testing::Test {
         FakeReturn* openfakeret = new FakeReturn(nullptr, static_cast<void*>(openresponse));      // NOLINT
         curvefsservice.SetOpenFile(openfakeret);
         // open will set the finfo for file instance
-        fileinstance_->Open("1_userinfo_.txt", userinfo);
+        fileinstance_->Open(CURVE_EXCLUSIVE | CURVE_RDWR);
 
         /**
          * 2. set closefile response
@@ -733,9 +732,8 @@ TEST_F(IOTrackerSplitorTest, ExceptionTest_TEST) {
     rootuserinfo.owner = "root";
     rootuserinfo.password = "root_password";
 
-    ASSERT_TRUE(fileserv->Initialize("/test", mdsclient_, rootuserinfo,
-                                     OpenFlags{}, fopt));
-    ASSERT_EQ(LIBCURVE_ERROR::OK, fileserv->Open("1_userinfo_.txt", userinfo));
+    ASSERT_TRUE(fileserv->Initialize("/test", mdsclient_, rootuserinfo, fopt));
+    ASSERT_EQ(LIBCURVE_ERROR::OK, fileserv->Open(CURVE_EXCLUSIVE | CURVE_RDWR));
     curve::client::IOManager4File* iomana = fileserv->GetIOManager4File();
     MetaCache* mc = fileserv->GetIOManager4File()->GetMetaCache();
 
@@ -1315,8 +1313,7 @@ TEST_F(IOTrackerSplitorTest, StartReadNotAllocateSegmentFromOrigin) {
     userinfo.owner = "cloneuser-test1";
     userinfo.password = "12345";
     mdsclient_->Initialize(fopt.metaServerOpt);
-    fileinstance2->Initialize("/clonesource", mdsclient_, userinfo, OpenFlags{},
-                              fopt);
+    fileinstance2->Initialize("/clonesource", mdsclient_, userinfo, fopt);
 
     MockRequestScheduler* mockschuler2 = new MockRequestScheduler;
     mockschuler2->DelegateToFake();
@@ -1390,8 +1387,7 @@ TEST_F(IOTrackerSplitorTest, AsyncStartReadNotAllocateSegmentFromOrigin) {
     userinfo.owner = "cloneuser-test2";
     userinfo.password = "12345";
     mdsclient_->Initialize(fopt.metaServerOpt);
-    fileinstance2->Initialize("/clonesource", mdsclient_, userinfo, OpenFlags{},
-                              fopt);
+    fileinstance2->Initialize("/clonesource", mdsclient_, userinfo, fopt);
 
     MockRequestScheduler* mockschuler2 = new MockRequestScheduler;
     mockschuler2->DelegateToFake();

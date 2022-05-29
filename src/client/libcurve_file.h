@@ -73,9 +73,13 @@ class FileClient {
      * @param: userinfo是操作文件的用户信息
      * @return: 返回文件fd
      */
+    // virtual int Open(const std::string& filename,
+    //                  const UserInfo& userinfo,
+    //                  const OpenFlags& openflags = {});
+
     virtual int Open(const std::string& filename,
-                     const UserInfo_t& userinfo,
-                     const OpenFlags& openflags = {});
+                     const UserInfo& userinfo,
+                     int flags = (CURVE_EXCLUSIVE | CURVE_RDWR));
 
     /**
      * 打开文件，这个打开只是创建了一个fd，并不与mds交互，没有session续约

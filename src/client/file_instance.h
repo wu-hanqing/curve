@@ -53,8 +53,7 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
      */
     bool Initialize(const std::string& filename,
                     std::shared_ptr<MDSClient> mdsclient,
-                    const UserInfo_t& userinfo,
-                    const OpenFlags& openflags,
+                    const UserInfo& userinfo,
                     const FileServiceOption& fileservicopt,
                     bool readonly = false);
     /**
@@ -63,9 +62,7 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
      * @param: userinfo为user信息
      * @return: 成功返回LIBCURVE_ERROR::OK,否则LIBCURVE_ERROR::FAILED
      */
-    int Open(const std::string& filename,
-             const UserInfo& userinfo,
-             std::string* sessionId = nullptr);
+    int Open(int flags, std::string* sessionId = nullptr);
 
     /**
      * 重新打开文件
@@ -75,7 +72,7 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
      * @param[out] newSessionId为ReOpen成功时返回的新sessionid
      * @return 成功返回LIBCURVE_ERROR::OK, 否则LIBCURVE_ERROR::FAILED
      */
-    int ReOpen(const std::string& filenam,
+    int ReOpen(const std::string& filename,
                const std::string& sessionId,
                const UserInfo& userInfo,
                std::string* newSessionId);
@@ -141,20 +138,20 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
         std::shared_ptr<MDSClient> mdsClient,
         const std::string& filename,
         const UserInfo& userInfo,
-        const OpenFlags& openflags,
         bool readonly);
 
-    static FileInstance* Open4Readonly(
-        const FileServiceOption& opt, std::shared_ptr<MDSClient> mdsclient,
-        const std::string& filename, const UserInfo& userInfo,
-        const OpenFlags& openflags = DefaultReadonlyOpenFlags());
+    static FileInstance* Open4Readonly(const FileServiceOption& opt,
+                                       std::shared_ptr<MDSClient> mdsclient,
+                                       const std::string& filename,
+                                       const UserInfo& userInfo,
+                                       int flags);
 
  private:
     void StopLease();
 
  private:
     // 保存当前file的文件信息
-    FInfo_t                 finfo_;
+    FInfo                 finfo_;
 
     // 当前FileInstance的初始化配置信息
     FileServiceOption       fileopt_;

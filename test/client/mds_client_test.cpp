@@ -30,6 +30,7 @@
 #include <string>
 
 #include "test/client/mock/mock_namespace_service.h"
+#include "src/common/uuid.h"
 
 namespace curve {
 namespace client {
@@ -53,6 +54,8 @@ void FakeRpcService(google::protobuf::RpcController* cntl_base,
     }
     done->Run();
 }
+
+static curve::common::UUIDGenerator uuidGen;
 
 class MDSClientTest : public testing::Test {
  protected:
@@ -277,7 +280,7 @@ TEST_F(MDSClientTest, TestOpenFile) {
 
         auto startMs = TimeUtility::GetTimeofDayMs();
         ASSERT_EQ(LIBCURVE_ERROR::FAILED,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
         auto endMs = TimeUtility::GetTimeofDayMs();
         ASSERT_LE(option_.mdsMaxRetryMS, endMs - startMs);
     }
@@ -293,7 +296,7 @@ TEST_F(MDSClientTest, TestOpenFile) {
                 Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
 
         ASSERT_EQ(LIBCURVE_ERROR::FAILED,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
     }
 
     // open normal file success
@@ -316,7 +319,7 @@ TEST_F(MDSClientTest, TestOpenFile) {
                 Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
 
         ASSERT_EQ(LIBCURVE_ERROR::OK,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
     }
 
     // open a flattened clone file
@@ -341,9 +344,9 @@ TEST_F(MDSClientTest, TestOpenFile) {
             .WillRepeatedly(DoAll(
                 SetArgPointee<2>(response),
                 Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
-
+       
         ASSERT_EQ(LIBCURVE_ERROR::OK,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
     }
 
     // open clone file, but response doesn't contains clone source segment
@@ -371,7 +374,7 @@ TEST_F(MDSClientTest, TestOpenFile) {
                 Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
 
         ASSERT_EQ(LIBCURVE_ERROR::OK,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
     }
 
     // open clone file success
@@ -407,13 +410,28 @@ TEST_F(MDSClientTest, TestOpenFile) {
                 Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
 
         ASSERT_EQ(LIBCURVE_ERROR::OK,
-                  mdsClient_.OpenFile(fileName, userInfo, &fileInfo, &session));
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
 
         ASSERT_EQ(fileInfo.sourceInfo.name, "/clone");
         ASSERT_EQ(fileInfo.sourceInfo.length, 10 * kGiB);
         ASSERT_EQ(fileInfo.sourceInfo.segmentSize, 1 * kGiB);
         ASSERT_EQ(fileInfo.sourceInfo.allocatedSegmentOffsets,
                   std::unordered_set<uint64_t>({0 * kGiB, 1 * kGiB, 9 * kGiB}));
+    }
+
+    // open with write permission
+    {
+        OpenFileResponse response;
+        response.set_statuscode(
+            curve::mds::StatusCode::kAcquireWriterLockError);
+
+        EXPECT_CALL(mockNameService_, OpenFile(_, _, _, _))
+            .WillRepeatedly(DoAll(
+                SetArgPointee<2>(response),
+                Invoke(FakeRpcService<OpenFileRequest, OpenFileResponse>)));
+
+        ASSERT_EQ(LIBCURVE_ERROR::FAILED,
+                  mdsClient_.OpenFile(fileName, &fileInfo, &session));
     }
 }
 

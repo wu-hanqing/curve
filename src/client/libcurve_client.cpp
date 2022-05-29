@@ -44,7 +44,20 @@ void CurveClient::UnInit() {
 
 int CurveClient::Open(const std::string& filename,
                       const OpenFlags& openflags) {
-    curve::client::UserInfo userInfo;
+    int flags = CURVE_RDWR;
+
+    if (openflags.exclusive) {
+        flags |= CURVE_EXCLUSIVE;
+    } else {
+        flags |= CURVE_SHARED;
+    }
+
+
+    return Open(filename, flags);
+}
+
+int CurveClient::Open(const std::string& filename, int flags) {
+    UserInfo userInfo;
     std::string realFileName;
     bool ret = curve::client::ServiceHelper::GetUserInfoFromFilename(
         filename, &realFileName, &userInfo.owner);
@@ -54,7 +67,7 @@ int CurveClient::Open(const std::string& filename,
         return -LIBCURVE_ERROR::FAILED;
     }
 
-    return fileClient_->Open(realFileName, userInfo, openflags);
+    return fileClient_->Open(realFileName, userInfo, flags);
 }
 
 int CurveClient::ReOpen(const std::string& filename,

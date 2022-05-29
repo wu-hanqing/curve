@@ -16,8 +16,8 @@
 
 /*
  * Project: curve
- * File Created: 2019-10-24 19:28
- * Author: wuhanqing
+ * File Created: 2022-05-29 13:08
+ * Author: YangFan (fansehep)
  */
 
 #include <gtest/gtest.h>
@@ -32,6 +32,7 @@
 #include <unordered_map>
 #include <memory>
 #include <string>
+#include <unistd.h>
 #include <numeric>
 #include <algorithm>
 #include <condition_variable>  // NOLINT
@@ -46,13 +47,14 @@
 
 using curve::CurveCluster;
 
+
 const char* kMdsConfPath = "./test/integration/unstable_test_mds.conf";
 const char* kCSConfPath = "./test/integration/unstable_test_cs.conf";
 const char* kClientConfPath = "./test/integration/unstable_test_client.conf";
 
-const char* kEtcdClientIpPort = "10.187.0.92:30000";
-const char* kEtcdPeerIpPort = "10.187.0.92:29999";
-const char* kMdsIpPort = "10.187.0.92:30010";
+const char* kEtcdClientIpPort = "127.0.0.1:30000";
+const char* kEtcdPeerIpPort = "127.0.0.1:29999";
+const char* kMdsIpPort = "127.0.0.1:30010";
 const char* kClientInflightNum = "6";
 const char* kLogPath = "./runlog/";
 
@@ -99,7 +101,7 @@ const std::vector<std::string> chunkserverConfTemplate{
     { " -chunkFilePoolMetaPath=./ttt/%d/chunkfilepool.meta" },
     { " -walFilePoolDir=./ttt/%d/walfilepool/" },
     { " -walFilePoolMetaPath=./ttt/%d/walfilepool.meta" },
-    { " -mdsListenAddr=10.187.0.92:30010,10.187.0.92:30011,10.187.0.92:30012" },
+    { " -mdsListenAddr=127.0.0.1:30010,127.0.0.1:30011,127.0.0.1:30012" },
     { " -log_dir=./runlog/cs_%d" },
     { " --stderrthreshold=3" }
 };
@@ -151,7 +153,7 @@ static char buffer[1024 * 4096];
 struct ChunkserverParam {
     int id;
     int port;
-    std::string addr{ "10.187.0.92:" };
+    std::string addr{ "127.0.0.1:" };
     std::vector<std::string> conf;
 
     ChunkserverParam(int id, int port) {
@@ -166,8 +168,8 @@ class UnstableCSModuleException : public ::testing::Test {
  protected:
     static void SetUpTestCase() {
         // 清理文件夹
-        system("rm -rf module_exception_curve_unstable_cs.etcd/*");
-        system("rm -rf ttt/*");
+        system("rm -rf module_exception_curve_unstable_cs.etcd");
+        system("rm -rf ttt");
         system("mkdir -p ttt");
         system("mkdir -p runlog");
         system("mkdir -p runlog/mds");
@@ -227,9 +229,9 @@ class UnstableCSModuleException : public ::testing::Test {
         UnInit();
         ASSERT_EQ(0, cluster->StopCluster());
         // 清理文件夹
-        // system("rm -rf module_exception_curve_unstable_cs.etcd/");
-        // system("rm -rf module_exception_curve_unstable_cs");
-        // system("rm -rf ttt");
+        system("rm -rf module_exception_curve_unstable_cs.etcd");
+        system("rm -rf module_exception_curve_unstable_cs");
+        system("rm -rf ttt");
     }
 
     static void StartAllChunkserver() {
@@ -298,7 +300,12 @@ int UnstableCSModuleException::fd = 0;
 std::unique_ptr<CurveCluster> UnstableCSModuleException::cluster;
 std::unordered_map<int, ChunkserverParam> UnstableCSModuleException::chunkServers; // NOLINT
 
-TEST_F(UnstableCSModuleException, TestCommonReadAndWrite) {
+
+/*
+* 当前已经有了一个 writer, 和多个reader, writer 主动 close,  
+* 在重新开一个 client, 测试该 client 是否可以正常 open, 并成为 writer
+*/
+TEST_F(UnstableCSModuleException, TestReadyWriterSomeReader) {
     const std::string filename = "/TestCommonReadAndWrite";
     constexpr size_t length = 4ull * 1024 * 1024;
     constexpr off_t offset = 4ull * 1024 * 1024;
@@ -310,80 +317,165 @@ TEST_F(UnstableCSModuleException, TestCommonReadAndWrite) {
     info.password[0] = 0;
 
     ::Create(filename.c_str(), &info, 10ull * 1024 * 1024 * 1024);
-    int fd = ::Open(filename.c_str(), &info);
+    OpenFlags openflags;
+    openflags.SetWantToBeWriter(true);
+	int fd = ::Open2(filename.c_str(), &info, openflags);
     int ret = ::Read(fd, readBuff.get(), offset, length);
-    LOG(INFO) << "Read finish, here";
     ret = ::Write(fd, readBuff.get(), offset, length);
-    LOG(INFO) << "Write finish, here";
-
-    ::Close(fd);
-
-    LOG(INFO) << "Sleeping";
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+    ASSERT_GT(ret, 0);
+	//* 此时base process 所在的进程成为 Writer
+	//* fork 2 个进程，再去挂载
+	auto rf = fork();
+	if (rf < 0) {
+		LOG(ERROR) << "fork error! please check your machine";
+        exit(-1);
+    }
+    //* child process
+	if (rf == 0) {
+		int fd_c2 = ::Open(filename.c_str(), &info);
+		int wr_v = ::Write(fd_c2, readBuff.get(), offset, length);
+        ASSERT_EQ(-1, wr_v);
+        
+        auto rf_2 = fork();
+        //* child process 2
+        if(rf_2 == 0) {
+            int fd_c3 = ::Open(filename.c_str(), &info);
+            int wr_v2 = ::Write(fd_c3, readBuff.get(), offset, length);
+            ASSERT_EQ(-1, wr_v2);
+        }
+        if(rf_2 > 0) {
+            wait(&rf_2);
+        }
+    }
+    LOG(INFO) << "Now the writer and 2 readers is success!";
+    if (rf > 0) {
+        ::Close(fd);
+        auto rf_3 = fork();
+        //* child process 3
+        if (rf_3 == 0) {
+            int fd_c4 = ::Open2(filename.c_str(), &info, openflags);
+            int wr_v4 = ::Write(fd_c4, readBuff.get(), offset, length);
+            ASSERT_GT(wr_v4, 0);
+            ::Close(fd_c4);
+        }
+        if(rf_3 > 0) {
+            wait(&rf_3);
+        }
+    }
+    if (rf > 0) {
+        wait(&rf);
     }
 }
 
-// 集群拓扑结构
-//     1个client
-//     1个etcd
-//     1个mds
-//     3个zone，每个里面2个chunkserver
-TEST_F(UnstableCSModuleException, HangOneZone) {
-    srand(time(nullptr));
+/*
+* 多个client 并发去open, 验证是否只有一个client拿到writer
+*
+*/
 
-    // 开启多个线程写文件
-    LOG(INFO) << "starting write...";
-    running = true;
-    std::vector<std::thread> openAndWriteThreads;
-    for (int i = 0; i < 2; ++i) {
-        openAndWriteThreads.emplace_back(
-            &UnstableCSModuleException::OpenAndWrite,
-            "/test" + std::to_string(i));
+TEST_F(UnstableCSModuleException, TestReadyWriterSomeReader_WithOutFakeWriter) {
+    const std::string filename = "/TestCommonReadAndWrite";
+    constexpr size_t length = 4ull * 1024 * 1024;
+    constexpr off_t offset = 4ull * 1024 * 1024;
+    std::unique_ptr<char[]> readBuff(new char[length]);
+
+    C_UserInfo_t info;
+    snprintf(info.owner, sizeof(info.owner), "curve");
+    info.password[0] = 0;
+    ::Create(filename.c_str(), &info, 10ull * 1024 * 1024 * 1024);
+    std::vector<std::thread> workers;
+    int jobs[5] = {0};
+    OpenFlags openflags;
+    openflags.SetWantToBeWriter(true);
+    for(int i = 0; i < 5; i++) {
+        workers.emplace_back([&](){
+            auto rf = fork();
+            if (rf == 0) {
+               auto fd = ::Open2(filename.c_str(), &info, openflags);
+               auto rv = ::Write(fd, readBuff.get(), offset, length);
+               jobs[i] = rv;
+               if(rv > 0) {
+                   ::Close(fd);
+               }
+            }
+            if (rf > 0) {
+                wait(&rf);
+            }
+        });
     }
-
-    // 正常写入60s, 并记录后30秒的iops
-    std::vector<uint64_t> beforeRecords;
-    std::this_thread::sleep_for(std::chrono::seconds(30));
-    for (int i = 1; i <= 30; ++i) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        beforeRecords.push_back(iops.value.get_value(1));
+    for(int i = 0; i < 5; i++) {
+        workers[i].join();
     }
-    auto beforeAvgIOps =
-        std::accumulate(beforeRecords.begin(), beforeRecords.end(), 0) /
-        beforeRecords.size();
-    LOG(INFO) << "iops before hang: " << beforeAvgIOps;
-
-    // hang一个zone的chunkserver
-    LOG(INFO) << "hang one zone";
-    ASSERT_EQ(0, cluster->HangChunkServer(1));
-    ASSERT_EQ(0, cluster->HangChunkServer(2));
-
-    std::vector<uint64_t> afterRecords;
-    // 打印每一秒的iops情况
-    for (int i = 1; i <= 10; ++i) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        auto tmp = iops.value.get_value(1);
-        LOG(INFO) << "after " << i << "s, iops: " << tmp;
-        // 记录后5s的iops值
-        if (i >= 5) {
-            afterRecords.push_back(tmp);
-        }
+    auto sum = 0;
+    for(auto i = 0; i < 5; ++i) {
+        if (jobs[i] > 0) {
+            sum++;
+            if(sum > 1) {
+                LOG(ERROR) << "Multi Open Faild!";
+            }
+        } 
     }
+    ASSERT_EQ(1, sum);
+}
 
-    uint64_t afterAvgIOps =
-        std::accumulate(afterRecords.begin(), afterRecords.end(), 0) /
-        afterRecords.size();
-    LOG(INFO) << "before iops: " << beforeAvgIOps;
-    LOG(INFO) << "after iops: " << afterAvgIOps;
-    ASSERT_GE(afterAvgIOps, static_cast<uint64_t>(beforeAvgIOps * 0.6));
+/*
+*  在 2 的基础上，加上 fakewriter
+*/
+TEST_F(UnstableCSModuleException, TestReadyWriterSomeReader_AddFakeWriter) {
+    const std::string filename = "/TestCommonReadAndWrite";
+    constexpr size_t length = 4ull * 1024 * 1024;
+    constexpr off_t offset = 4ull * 1024 * 1024;
+    std::unique_ptr<char[]> readBuff(new char[length]);
 
-    ASSERT_EQ(0, cluster->RecoverHangChunkServer(1));
-    ASSERT_EQ(0, cluster->RecoverHangChunkServer(2));
-
-    running = false;
-    for (auto& th : openAndWriteThreads) {
-        th.join();
+    C_UserInfo_t info;
+    snprintf(info.owner, sizeof(info.owner), "curve");
+    info.password[0] = 0;
+    ::Create(filename.c_str(), &info, 10ull * 1024 * 1024 * 1024);
+    std::vector<std::thread> workers;
+    int jobs[5] = {0};
+    OpenFlags openflags;
+    openflags.SetWantToBeWriter(true);
+    OpenFlags fakewriter_flag;
+    fakewriter_flag.SetFakeWriter(true);
+    for(int i = 0; i < 5; i++) {
+        workers.emplace_back([&](){
+            auto rf = fork();
+            if (i == 4) {
+                if (rf == 0) {
+                    auto fd = ::Open2(filename.c_str(), &info, fakewriter_flag);
+                    auto rv = ::Write(fd, readBuff.get(), offset, length);
+                    if (rv > 0) {
+                        jobs[i] = -1000;
+                    }
+                }
+                return;
+            }
+            if (rf == 0) {
+               auto fd = ::Open2(filename.c_str(), &info, openflags);
+               auto rv = ::Write(fd, readBuff.get(), offset, length);
+               jobs[i] = rv;
+               if(rv > 0) {
+                   ::Close(fd);
+               }
+            }
+            if (rf > 0) {
+                wait(&rf);
+            }
+        });
     }
-    LOG(INFO) << "all write thread stoped";
+    auto sum = 0;
+    bool fakewriter_test = false;
+    for(auto i = 0; i < 5; ++i) {
+        if (jobs[i] > 0) {
+            sum++;
+            if(sum > 1) {
+                LOG(ERROR) << "Multi Open Faild!";
+            }
+        } else if (jobs[i] == -1000) {
+            fakewriter_test = true;
+        } 
+    }
+    ASSERT_TRUE(fakewriter_test);
+    LOG(INFO) << "fake writer success open!";
+    ASSERT_EQ(1, sum);
+    LOG(INFO) << "success!";
 }

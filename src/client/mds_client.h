@@ -87,10 +87,9 @@ class MDSClient : public MDSClientBase,
      * @return: 成功返回LIBCURVE_ERROR::OK,如果认证失败返回LIBCURVE_ERROR::AUTHFAIL，
      *          否则返回LIBCURVE_ERROR::FAILED
      */
-    LIBCURVE_ERROR OpenFile(const std::string& filename,
-                            const UserInfo_t& userinfo,
-                            FInfo_t* fi,
-                            LeaseSession* lease);
+    LIBCURVE_ERROR OpenFile(const std::string &filename,
+                            FInfo *fi,
+                            LeaseSession *lease);
 
     /**
      * 获取copysetid对应的serverlist信息并更新到metacache
@@ -227,11 +226,9 @@ class MDSClient : public MDSClientBase,
      * @return: 成功返回LIBCURVE_ERROR::OK,如果认证失败返回LIBCURVE_ERROR::AUTHFAIL，
      *          否则返回LIBCURVE_ERROR::FAILED
      */
-    LIBCURVE_ERROR RefreshSession(const std::string& filename,
-                                  const UserInfo_t& userinfo,
-                                  const std::string& sessionid,
-                                  LeaseRefreshResult* resp,
-                                  LeaseSession* lease = nullptr);
+    LIBCURVE_ERROR RefreshSession(const FInfo *fileInfo,
+                                  LeaseRefreshResult *resp,
+                                  LeaseSession *lease = nullptr);
     /**
      * 关闭文件，需要携带sessionid，这样mds端会在数据库删除该session信息
      * @param: filename是要续约的文件名
@@ -239,9 +236,7 @@ class MDSClient : public MDSClientBase,
      * @return: 成功返回LIBCURVE_ERROR::OK,如果认证失败返回LIBCURVE_ERROR::AUTHFAIL，
      *          否则返回LIBCURVE_ERROR::FAILED
      */
-    LIBCURVE_ERROR CloseFile(const std::string& filename,
-                             const UserInfo_t& userinfo,
-                             const std::string& sessionid);
+    LIBCURVE_ERROR CloseFile(const FInfo *fileInfo);
 
     /**
      * @brief 创建clone文件
@@ -499,8 +494,11 @@ class MDSClient : public MDSClientBase,
      * @param: statecode为mds一侧错误码
      * @param[out]: 出参errcode为libcurve一侧的错误码
      */
-    void MDSStatusCode2LibcurveError(const ::curve::mds::StatusCode& statcode,
-                                     LIBCURVE_ERROR* errcode);
+    static void MDSStatusCode2LibcurveError(
+        const ::curve::mds::StatusCode &statcode,
+        LIBCURVE_ERROR *errcode);
+
+    LIBCURVE_ERROR ReturnError(int retcode);
 
  private:
     // 初始化标志，放置重复初始化

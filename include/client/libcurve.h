@@ -370,6 +370,8 @@ class CurveClient {
     virtual int Open(const std::string& filename,
                      const OpenFlags& openflags);
 
+    virtual int Open(const std::string& filename, int flags);
+
     /**
      * 重新打开文件
      * @param filename 文件名，格式为：文件名_用户名_

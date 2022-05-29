@@ -99,10 +99,9 @@ TEST_F(CurveClientUserAuthFail, CurveClientUserAuthFailTest) {
 
     FileInstance fileinstance;
     ASSERT_FALSE(fileinstance.Initialize(filename, mdsclient, emptyuserinfo,
-                                         OpenFlags{},
                                          cc.GetFileServiceOption()));
-    ASSERT_TRUE(fileinstance.Initialize(
-        filename, mdsclient, userinfo, OpenFlags{}, cc.GetFileServiceOption()));
+    ASSERT_TRUE(fileinstance.Initialize(filename, mdsclient, userinfo,
+                                        cc.GetFileServiceOption()));
 
     // set openfile response
     ::curve::mds::OpenFileResponse openresponse;
@@ -160,7 +159,7 @@ TEST_F(CurveClientUserAuthFail, CurveClientUserAuthFailTest) {
     curvefsservice.SetRefreshSession(refreshfakeret, refresht);
 
     // 3. open the file auth failed
-    int openret = fileinstance.Open(filename, userinfo);
+    int openret = fileinstance.Open(CURVE_EXCLUSIVE | CURVE_RDWR);
     ASSERT_EQ(openret, -LIBCURVE_ERROR::AUTHFAIL);
 
     // 4. open file success
@@ -169,7 +168,8 @@ TEST_F(CurveClientUserAuthFail, CurveClientUserAuthFailTest) {
      = new FakeReturn(nullptr, static_cast<void*>(&openresponse));
     curvefsservice.SetOpenFile(openfakeret2);
 
-    openret = fileinstance.Open(filename, userinfo);
+    openret =
+        fileinstance.Open(CURVE_EXCLUSIVE | CURVE_RDWR);
     ASSERT_EQ(openret, LIBCURVE_ERROR::OK);
 /*
     // 5. wait for refresh

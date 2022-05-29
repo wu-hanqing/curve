@@ -101,7 +101,9 @@ class MDSClientBase {
      * @param[in]:channel是当前与mds建立的通道
      */
     void OpenFile(const std::string& filename,
-                  const UserInfo_t& userinfo,
+                  const UserInfo& userinfo,
+                  const std::string& openId,
+                  int flags,
                   OpenFileResponse* response,
                   brpc::Controller* cntl,
                   brpc::Channel* channel);
@@ -134,9 +136,7 @@ class MDSClientBase {
      * @param[in|out]: cntl既是入参，也是出参，返回RPC状态
      * @param[in]:channel是当前与mds建立的通道
      */
-    void CloseFile(const std::string& filename,
-                   const UserInfo_t& userinfo,
-                   const std::string& sessionid,
+    void CloseFile(const FInfo* fileInfo,
                    CloseFileResponse* response,
                    brpc::Controller* cntl,
                    brpc::Channel* channel);
@@ -223,9 +223,7 @@ class MDSClientBase {
      * @param[in|out]: cntl既是入参，也是出参，返回RPC状态
      * @param[in]:channel是当前与mds建立的通道
      */
-    void RefreshSession(const std::string& filename,
-                        const UserInfo_t& userinfo,
-                        const std::string& sessionid,
+    void RefreshSession(const FInfo* fileInfo,
                         ReFreshSessionResponse* response,
                         brpc::Controller* cntl,
                         brpc::Channel* channel);
@@ -239,7 +237,7 @@ class MDSClientBase {
      * @param[in]:channel是当前与mds建立的通道
      */
     void CheckSnapShotStatus(const std::string& filename,
-                             const UserInfo_t& userinfo,
+                             const UserInfo& userinfo,
                              uint64_t seq,
                              CheckSnapShotStatusResponse* response,
                              brpc::Controller* cntl,

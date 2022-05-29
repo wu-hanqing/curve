@@ -125,7 +125,8 @@ SourceReader::ReadHandler* SourceReader::GetReadHandler(
     }
 
     FileInstance* instance = FileInstance::Open4Readonly(
-        fileOption_, mdsclient->shared_from_this(), fileName, userInfo);
+        fileOption_, mdsclient->shared_from_this(), fileName, userInfo,
+        CURVE_EXCLUSIVE | CURVE_RDONLY);
     if (instance == nullptr) {
         return nullptr;
     }

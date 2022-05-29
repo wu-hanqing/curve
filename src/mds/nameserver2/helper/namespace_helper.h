@@ -50,6 +50,8 @@ class NameSpaceStorageCodec {
     static std::string EncodeSegmentAllocValue(uint16_t lid, uint64_t alloc);
     static bool DecodeSegmentAllocValue(
         const std::string &value, uint16_t *lid, uint64_t *alloc);
+
+    static std::string EncodeFileWriterKey(uint64_t inodeId);
 };
 
 inline bool isPathValid(const std::string path) {

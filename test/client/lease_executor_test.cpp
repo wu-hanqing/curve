@@ -60,6 +60,8 @@ class LeaseExecutorTest : public ::testing::Test {
 
         userInfo_.owner = "test";
 
+        fi_.userinfo = userInfo_;
+
         ASSERT_EQ(0, mdsClient_.Initialize(mdsOpt));
         ASSERT_TRUE(io4File_.Initialize("/test", {}, &mdsClient_));
         ASSERT_EQ(0, server_.AddService(&curveFsService_,
@@ -107,7 +109,7 @@ TEST_F(LeaseExecutorTest, TestStartFailed) {
         leaseOpt_.mdsRefreshTimesPerLease = 100;
         lease_.leaseTime = 0;
 
-        LeaseExecutor exec(leaseOpt_, userInfo_, &mdsClient_, &io4File_);
+        LeaseExecutor exec(leaseOpt_, &mdsClient_, &io4File_);
         ASSERT_FALSE(exec.Start(fi_, lease_));
     }
 
@@ -115,7 +117,7 @@ TEST_F(LeaseExecutorTest, TestStartFailed) {
         leaseOpt_.mdsRefreshTimesPerLease = 0;
         lease_.leaseTime = 1000;
 
-        LeaseExecutor exec(leaseOpt_, userInfo_, &mdsClient_, &io4File_);
+        LeaseExecutor exec(leaseOpt_, &mdsClient_, &io4File_);
         ASSERT_FALSE(exec.Start(fi_, lease_));
     }
 }
@@ -129,7 +131,7 @@ TEST_F(LeaseExecutorTest, TestStartStop) {
     leaseOpt_.mdsRefreshTimesPerLease = 1;
     lease_.leaseTime = 5000000;
 
-    LeaseExecutor exec(leaseOpt_, userInfo_, &mdsClient_, &io4File_);
+    LeaseExecutor exec(leaseOpt_, &mdsClient_, &io4File_);
     ASSERT_TRUE(exec.Start(fi_, lease_));
 
     std::this_thread::sleep_for(std::chrono::seconds(20));
@@ -146,7 +148,7 @@ TEST_F(LeaseExecutorTest, TestMultiStop) {
     leaseOpt_.mdsRefreshTimesPerLease = 1;
     lease_.leaseTime = 5000000;
 
-    LeaseExecutor exec(leaseOpt_, userInfo_, &mdsClient_, &io4File_);
+    LeaseExecutor exec(leaseOpt_, &mdsClient_, &io4File_);
     ASSERT_TRUE(exec.Start(fi_, lease_));
 
     std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -164,7 +166,7 @@ TEST_F(LeaseExecutorTest, TestNoStop) {
     leaseOpt_.mdsRefreshTimesPerLease = 1;
     lease_.leaseTime = 5000000;
 
-    LeaseExecutor exec(leaseOpt_, userInfo_, &mdsClient_, &io4File_);
+    LeaseExecutor exec(leaseOpt_, &mdsClient_, &io4File_);
     ASSERT_TRUE(exec.Start(fi_, lease_));
 
     std::this_thread::sleep_for(std::chrono::seconds(10));

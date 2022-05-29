@@ -34,8 +34,10 @@
 #include "test/mds/nameserver2/mock/mock_clean_manager.h"
 #include "test/mds/nameserver2/mock/mock_snapshotclone_client.h"
 #include "test/mds/nameserver2/mock/mock_file_record_manager.h"
+#include "test/mds/nameserver2/mock/mock_file_writer_lock.h"
 #include "test/mds/mock/mock_alloc_statistic.h"
 #include "test/mds/mock/mock_topology.h"
+#include "include/client/libcurve_define.h"
 
 using ::testing::AtLeast;
 using ::testing::StrEq;
@@ -93,13 +95,16 @@ class CurveFSTest: public ::testing::Test {
             .WillOnce(DoAll(SetArgPointee<2>(fileInfo),
                 Return(StoreStatus::OK)));
 
+        fileWriterLockMgr_ = std::make_shared<MockFileWriterLockManager>();
+
         curvefs_->Init(storage_, inodeIdGenerator_, mockChunkAllocator_,
                         mockcleanManager_,
                         fileRecordManager_,
                         allocStatistic_,
                         curveFSOptions_,
                         topology_,
-                        snapshotClient_);
+                        snapshotClient_,
+                        fileWriterLockMgr_);
         DefaultSegmentSize = curvefs_->GetDefaultSegmentSize();
         kMiniFileLength = curvefs_->GetMinFileLength();
         kMaxFileLength = curvefs_->GetMaxFileLength();
@@ -126,6 +131,8 @@ class CurveFSTest: public ::testing::Test {
     uint64_t DefaultSegmentSize;
     uint64_t kMiniFileLength;
     uint64_t kMaxFileLength;
+
+    std::shared_ptr<MockFileWriterLockManager> fileWriterLockMgr_;
 };
 
 TEST_F(CurveFSTest, testCreateFile1) {
@@ -2123,7 +2130,7 @@ TEST_F(CurveFSTest, testCreateSnapshotFile) {
         FileInfo info;
         ASSERT_EQ(StatusCode::kOK,
                   curvefs_->RefreshSession(fileName, "", 0, "", "127.0.0.1",
-                                           1234, "0.0.5", &info));
+                                           1234, "0.0.5", nullptr, &info));
 
         FileInfo snapShotFileInfoRet;
         ASSERT_EQ(curvefs_->CreateSnapShotFile(
@@ -2149,8 +2156,8 @@ TEST_F(CurveFSTest, testCreateSnapshotFile) {
 
         FileInfo info;
         ASSERT_EQ(StatusCode::kOK,
-            curvefs_->RefreshSession(
-                fileName, "", 0 , "", "127.0.0.1",  1234, "", &info));
+                  curvefs_->RefreshSession(fileName, "", 0, "", "127.0.0.1",
+                                           1234, "", nullptr, &info));
 
         FileInfo snapShotFileInfoRet;
         ASSERT_EQ(curvefs_->CreateSnapShotFile(
@@ -3009,7 +3016,7 @@ TEST_F(CurveFSTest, testOpenFile) {
         EXPECT_CALL(*storage_, GetFile(_, _, _))
         .Times(1)
         .WillOnce(Return(StoreStatus::KeyNotExist));
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1",
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
                                      &protoSession, &fileInfo),
                   StatusCode::kFileNotExists);
         ASSERT_EQ(curvefs_->GetOpenFileNum(), 0);
@@ -3023,7 +3030,7 @@ TEST_F(CurveFSTest, testOpenFile) {
         EXPECT_CALL(*storage_, GetFile(_, _, _))
         .Times(1)
         .WillOnce(Return(StoreStatus::OK));
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1",
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
                                      &protoSession, &fileInfo),
                   StatusCode::kNotSupported);
         ASSERT_EQ(curvefs_->GetOpenFileNum(), 0);
@@ -3038,9 +3045,9 @@ TEST_F(CurveFSTest, testOpenFile) {
         .Times(1)
         .WillOnce(Return(StoreStatus::OK));
 
-        ASSERT_EQ(
-            curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession, &fileInfo),
-            StatusCode::kOK);
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo),
+                  StatusCode::kOK);
     }
 
     // open clone file, clone source is not a valid curve file
@@ -3055,8 +3062,8 @@ TEST_F(CurveFSTest, testOpenFile) {
             .WillOnce(Return(StoreStatus::OK));
 
         CloneSourceSegment sourceSegment;
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, &sourceSegment),
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, &sourceSegment),
                   StatusCode::kOK);
         ASSERT_FALSE(sourceSegment.IsInitialized());
     }
@@ -3074,8 +3081,8 @@ TEST_F(CurveFSTest, testOpenFile) {
             .WillOnce(Return(StoreStatus::OK));
 
         ASSERT_EQ(StatusCode::kOK,
-                  curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, &sourceSegment));
+                  curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, &sourceSegment));
         ASSERT_FALSE(sourceSegment.IsInitialized());
     }
 
@@ -3090,8 +3097,8 @@ TEST_F(CurveFSTest, testOpenFile) {
         EXPECT_CALL(*storage_, GetFile(_, _, _))
             .WillOnce(Return(StoreStatus::OK));
 
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, nullptr),
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, nullptr),
                   StatusCode::kParaError);
     }
 
@@ -3108,8 +3115,8 @@ TEST_F(CurveFSTest, testOpenFile) {
             .WillOnce(Return(StoreStatus::KeyNotExist));
 
         CloneSourceSegment sourceSegment;
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, &sourceSegment),
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, &sourceSegment),
                   StatusCode::kFileNotExists);
         ASSERT_FALSE(sourceSegment.IsInitialized());
     }
@@ -3130,8 +3137,8 @@ TEST_F(CurveFSTest, testOpenFile) {
             .WillOnce(Return(StoreStatus::InternalError));
 
         CloneSourceSegment sourceSegment;
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, &sourceSegment),
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, &sourceSegment),
                   StatusCode::kStorageError);
         ASSERT_FALSE(sourceSegment.IsInitialized());
     }
@@ -3154,8 +3161,8 @@ TEST_F(CurveFSTest, testOpenFile) {
                 DoAll(SetArgPointee<1>(segments), Return(StoreStatus::OK)));
 
         CloneSourceSegment sourceSegment;
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
-                                     &fileInfo, &sourceSegment),
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
+                                     &protoSession, &fileInfo, &sourceSegment),
                   StatusCode::kOK);
 
         ASSERT_TRUE(sourceSegment.IsInitialized());
@@ -3198,7 +3205,7 @@ TEST_F(CurveFSTest, testOpenFile) {
                 DoAll(SetArgPointee<1>(segments), Return(StoreStatus::OK)));
 
         CloneSourceSegment sourceSegment;
-        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession,
+        ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr, &protoSession,
                                      &fileInfo, &sourceSegment),
                   StatusCode::kOK);
 
@@ -3221,7 +3228,7 @@ TEST_F(CurveFSTest, testCloseFile) {
     .WillOnce(Return(StoreStatus::OK));
 
     ASSERT_EQ(
-        curvefs_->OpenFile("/file1", "127.0.0.1", &protoSession, &fileInfo),
+        curvefs_->OpenFile("/file1", "127.0.0.1", nullptr, &protoSession, &fileInfo),
         StatusCode::kOK);
 
     // 执行成功
@@ -3231,7 +3238,7 @@ TEST_F(CurveFSTest, testCloseFile) {
             .WillOnce(Return(StoreStatus::OK));
 
         ASSERT_EQ(curvefs_->CloseFile("/file1", protoSession.sessionid(), "",
-                                      kInvalidPort),
+                                      kInvalidPort, nullptr),
                   StatusCode::kOK);
     }
 }
@@ -3246,7 +3253,7 @@ TEST_F(CurveFSTest, testRefreshSession) {
     .Times(1)
     .WillOnce(Return(StoreStatus::OK));
 
-    ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1",
+    ASSERT_EQ(curvefs_->OpenFile("/file1", "127.0.0.1", nullptr,
                                     &protoSession, &fileInfo),
                 StatusCode::kOK);
 
@@ -3257,7 +3264,8 @@ TEST_F(CurveFSTest, testRefreshSession) {
         .Times(1)
         .WillOnce(Return(StoreStatus::KeyNotExist));
         ASSERT_EQ(curvefs_->RefreshSession("/file1", "sessionidxxxxx", 12345,
-                    "signaturexxxx", "127.0.0.1", 1234, "", &fileInfo1),
+                                           "signaturexxxx", "127.0.0.1", 1234,
+                                           "", nullptr, &fileInfo1),
                   StatusCode::kFileNotExists);
     }
 
@@ -3270,7 +3278,8 @@ TEST_F(CurveFSTest, testRefreshSession) {
 
         uint64_t date = ::curve::common::TimeUtility::GetTimeofDayUs();
         ASSERT_EQ(curvefs_->RefreshSession("/file1", protoSession.sessionid(),
-                    date, "signaturexxxx", "127.0.0.1", 1234, "", &fileInfo1),
+                                           date, "signaturexxxx", "127.0.0.1",
+                                           1234, "", nullptr, &fileInfo1),
                   StatusCode::kOK);
         ASSERT_EQ(1, curvefs_->GetOpenFileNum());
     }
@@ -3734,6 +3743,7 @@ TEST_F(CurveFSTest, Init) {
                                                       allocStatistic_,
                                                       curveFSOptions_,
                                                       topology_,
+                                                      nullptr,
                                                       nullptr));
         }
     }
@@ -3752,6 +3762,7 @@ TEST_F(CurveFSTest, Init) {
                                        allocStatistic_,
                                        curveFSOptions_,
                                        topology_,
+                                       nullptr,
                                        nullptr));
     }
 
@@ -3774,6 +3785,7 @@ TEST_F(CurveFSTest, Init) {
                                        allocStatistic_,
                                        curveFSOptions_,
                                        topology_,
+                                       nullptr,
                                        nullptr));
 
         // putfile ok
@@ -3800,6 +3812,7 @@ TEST_F(CurveFSTest, Init) {
                                       allocStatistic_,
                                       curveFSOptions_,
                                       topology_,
+                                      nullptr,
                                       nullptr));
     }
 }
@@ -3906,6 +3919,193 @@ TEST_F(CurveFSTest, ListAllVolumesOnCopyset) {
         .WillOnce(Return(StoreStatus::KeyNotExist));
         ASSERT_EQ(StatusCode::kStorageError,
                     curvefs_->ListVolumesOnCopyset(copysetVec, &fileNames));
+    }
+}
+
+TEST_F(CurveFSTest, TestOpenFileWithFlags) {
+    ProtoSession session;
+    FileInfo fileInfo;
+    fileInfo.set_filetype(FileType::INODE_PAGEFILE);
+
+    EXPECT_CALL(*storage_, GetFile(_, _, _))
+        .WillRepeatedly(Return(StoreStatus::OK));
+
+    // readonly open
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Lock(_, _))
+            .Times(0);
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDONLY);
+        context.set_openid("dummy-openid");
+
+        ASSERT_FALSE(NeedAcquireFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kOK,
+                  curvefs_->OpenFile("/flie1", "127.0.0.1", &context, &session,
+                                     &fileInfo));
+    }
+
+    // open with write permission
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Lock(_, _))
+            .WillOnce(Return(true));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedAcquireFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kOK,
+                  curvefs_->OpenFile("/flie1", "127.0.0.1", &context, &session,
+                                     &fileInfo));
+    }
+
+    // open with force write permission
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Lock(_, _))
+            .Times(0);
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_FORCE_WRITE);
+        context.set_openid("dummy-openid");
+
+        ASSERT_FALSE(NeedAcquireFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kOK,
+                  curvefs_->OpenFile("/flie1", "127.0.0.1", &context, &session,
+                                     &fileInfo));
+    }
+
+    // open with write permission and failed
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Lock(_, _))
+            .WillOnce(Return(false));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedAcquireFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kAcquireWriterLockError,
+                  curvefs_->OpenFile("/flie1", "127.0.0.1", &context, &session,
+                                     &fileInfo));
+    }
+}
+
+TEST_F(CurveFSTest, TestCloseFileWithFlags) {
+    FileInfo fileInfo;
+    fileInfo.set_filetype(FileType::INODE_PAGEFILE);
+
+    EXPECT_CALL(*storage_, GetFile(_, _, _))
+        .WillRepeatedly(Return(StoreStatus::OK));
+
+    // open read only
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Unlock(_, _))
+            .Times(0);
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDONLY);
+        context.set_openid("dummy-openid");
+
+        ASSERT_FALSE(NeedReleaseFileWriterLock(&context));
+
+        ASSERT_EQ(
+            StatusCode::kOK,
+            curvefs_->CloseFile("/file1", "", "127.0.0.1", 1234, &context));
+    }
+
+    // open with writer permission
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Unlock(_, _))
+            .WillOnce(Return(true));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedReleaseFileWriterLock(&context));
+
+        ASSERT_EQ(
+            StatusCode::kOK,
+            curvefs_->CloseFile("/file1", "", "127.0.0.1", 1234, &context));   
+    }
+
+    // open with writer permission but unlock error
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Unlock(_, _))
+            .WillOnce(Return(false));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedReleaseFileWriterLock(&context));
+
+        ASSERT_EQ(
+            StatusCode::kReleaseWriterLockError,
+            curvefs_->CloseFile("/file1", "", "127.0.0.1", 1234, &context));   
+    }
+}
+
+TEST_F(CurveFSTest, TestRefreshSessionWithFlags) {
+    ProtoSession protoSession;
+    FileInfo fileInfo;
+    fileInfo.set_filetype(FileType::INODE_PAGEFILE);
+
+    EXPECT_CALL(*storage_, GetFile(_, _, _))
+        .WillRepeatedly(Return(StoreStatus::OK));
+
+    // open read only
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Unlock(_, _))
+            .Times(0);
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDONLY);
+        context.set_openid("dummy-openid");
+
+        ASSERT_FALSE(NeedUpdateFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kOK, curvefs_->RefreshSession(
+                                       "/file1", "", 1234, "1234", "127.0.0.1",
+                                       1234, "1234", &context, &fileInfo));
+    }
+
+    // open with write permision
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Update(_, _))
+            .WillOnce(Return(true));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedUpdateFileWriterLock(&context));
+
+        ASSERT_EQ(StatusCode::kOK, curvefs_->RefreshSession(
+                                       "/file1", "", 1234, "1234", "127.0.0.1",
+                                       1234, "1234", &context, &fileInfo));
+    }
+
+    // open with write permision, but update failed
+    {
+        EXPECT_CALL(*fileWriterLockMgr_, Update(_, _))
+            .WillOnce(Return(false));
+
+        FileOpenContext context;
+        context.set_openflags(CURVE_SHARED | CURVE_RDWR);
+        context.set_openid("dummy-openid");
+
+        ASSERT_TRUE(NeedUpdateFileWriterLock(&context));
+
+        ASSERT_EQ(
+            StatusCode::kUpdateWriterLockError,
+            curvefs_->RefreshSession("/file1", "", 1234, "1234", "127.0.0.1",
+                                     1234, "1234", &context, &fileInfo));
     }
 }
 

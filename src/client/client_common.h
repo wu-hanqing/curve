@@ -32,6 +32,7 @@
 #include <unordered_set>
 
 #include "include/client/libcurve.h"
+#include "include/client/libcurve_define.h"
 #include "src/common/net_common.h"
 
 namespace curve {
@@ -154,9 +155,10 @@ typedef struct FInfo {
     uint64_t        stripeUnit;
     uint64_t        stripeCount;
 
-    OpenFlags       openflags;
+    int openflags;
+    std::string openId;
 
-    FInfo() {
+    FInfo() : openflags(0) {
         id = 0;
         ctime = 0;
         seqnum = 0;
@@ -326,11 +328,10 @@ inline bool CloneSourceInfo::IsSegmentAllocated(uint64_t offset) const {
     return allocatedSegmentOffsets.count(segmentOffset) != 0;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const OpenFlags& flags) {
-    os << "[exclusive: " << std::boolalpha << flags.exclusive << "]";
+std::string OpenflagsToString(int openflags);
 
-    return os;
-}
+// Check wether openflags is valid or not
+bool CheckOpenflags(int openflags);
 
 // default flags for readonly open
 OpenFlags DefaultReadonlyOpenFlags();

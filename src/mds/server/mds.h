@@ -104,6 +104,7 @@ struct MDSOptions {
     CopysetOption copysetOption;
     ChunkServerClientOption chunkServerClientOption;
     SnapshotCloneClientOption snapshotCloneClientOption;
+    FileWriterLockOptions fileWriterLockOptions;
 };
 
 class MDS {
@@ -228,6 +229,7 @@ class MDS {
     char* etcdEndpoints_;
     FileLockManager* fileLockManager_;
     std::shared_ptr<SnapshotCloneClient> snapshotCloneClient_;
+    std::shared_ptr<FileWriterLockManager> fileWriterLockMgr_;
 };
 
 }  // namespace mds

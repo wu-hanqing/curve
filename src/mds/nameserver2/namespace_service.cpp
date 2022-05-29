@@ -1136,7 +1136,6 @@ void NameSpaceService::OpenFile(::google::protobuf::RpcController* controller,
     brpc::ClosureGuard doneGuard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(controller);
     ExpiredTime expiredTime;
-
     std::string clientIP = butil::ip2str(cntl->remote_side().ip).c_str();
     uint32_t clientPort = cntl->remote_side().port;
 
@@ -1184,11 +1183,10 @@ void NameSpaceService::OpenFile(::google::protobuf::RpcController* controller,
     ProtoSession *protoSession = new ProtoSession();
     FileInfo *fileInfo = new FileInfo();
     CloneSourceSegment* cloneSourceSegment = new CloneSourceSegment();
-    retCode = kCurveFS.OpenFile(request->filename(),
-                                clientIP,
-                                protoSession,
-                                fileInfo,
-                                cloneSourceSegment);
+    const FileOpenContext* context =
+        request->has_opencontext() ? &request->opencontext() : nullptr;
+    retCode = kCurveFS.OpenFile(request->filename(), clientIP, context,
+                                protoSession, fileInfo, cloneSourceSegment);
     if (retCode != StatusCode::kOK)  {
         response->set_statuscode(retCode);
         if (google::ERROR != GetMdsLogLevel(retCode)) {
@@ -1288,10 +1286,13 @@ void NameSpaceService::CloseFile(::google::protobuf::RpcController* controller,
         return;
     }
 
+    const FileOpenContext* context =
+        request->has_opencontext() ? &request->opencontext() : nullptr;
     retCode = kCurveFS.CloseFile(
         request->filename(), request->sessionid(),
         request->has_clientip() ? request->clientip() : clientIP,
-        request->has_clientport() ? request->clientport() : kInvalidPort);
+        request->has_clientport() ? request->clientport() : kInvalidPort,
+        context);
     if (retCode != StatusCode::kOK)  {
         response->set_statuscode(retCode);
         if (google::ERROR != GetMdsLogLevel(retCode)) {
@@ -1392,6 +1393,8 @@ void NameSpaceService::RefreshSession(
         return;
     }
 
+    const FileOpenContext* context =
+        request->has_opencontext() ? &request->opencontext() : nullptr;
     FileInfo *fileInfo = new FileInfo();
     retCode = kCurveFS.RefreshSession(
         request->filename(),
@@ -1401,6 +1404,7 @@ void NameSpaceService::RefreshSession(
         request->has_clientip() ? request->clientip() : clientIP,
         request->has_clientport() ? request->clientport() : kInvalidPort,
         clientVersion,
+        context,
         fileInfo);
     if (retCode != StatusCode::kOK)  {
         response->set_statuscode(retCode);

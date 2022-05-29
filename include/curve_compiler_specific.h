@@ -40,12 +40,20 @@
 #else
 #  define CURVE_LIKELY(expr) (expr)
 #  define CURVE_UNLIKELY(expr) (expr)
-#endif  // INCLUDE_CURVE_COMPILER_SPECIFIC_H_
+#endif  // COMPILER_GCC
 
 #ifdef UNIT_TEST
 #define CURVE_MOCK virtual
 #else
 #define CURVE_MOCK
-#endif  // INCLUDE_CURVE_COMPILER_SPECIFIC_H_
+#endif  // UNIT_TEST
+
+// FALLTHROUGH_INTENDED
+
+#if defined(__GNUC__) && __GNUC__ >= 7
+#define FALLTHROUGH_INTENDED __attribute__((fallthrough))
+#else
+#define FALLTHROUGH_INTENDED ((void)0)
+#endif /* __GNUC__ >= 7 */
 
 #endif  // INCLUDE_CURVE_COMPILER_SPECIFIC_H_

@@ -683,8 +683,8 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     LOG(INFO) << "here";
 
     mdsclient_->Initialize(fopt.metaServerOpt);
-    fileinstance_.Initialize(
-        "/UnstableChunkserverTest", mdsclient_, userinfo, OpenFlags{}, fopt);
+    fileinstance_.Initialize("/UnstableChunkserverTest", mdsclient_, userinfo,
+                             fopt);
 
     // 设置leaderid
     EndPoint ep;
@@ -699,7 +699,7 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     mds.CreateCopysetNode(true);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    int fd = fileinstance_.Open(filename.c_str(), userinfo);
+    int fd = fileinstance_.Open(CURVE_EXCLUSIVE | CURVE_RDWR);
 
     MetaCache* mc = fileinstance_.GetIOManager4File()->GetMetaCache();
 
@@ -868,7 +868,7 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
 
     mdsclient_->Initialize(fopt.metaServerOpt);
     fileinstance_.Initialize("/ResumeTimeoutBackoff", mdsclient_, userinfo,
-                             OpenFlags{}, fopt);
+                             fopt);
 
     // 设置leaderid
     EndPoint ep;
@@ -883,7 +883,7 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
     mds.CreateCopysetNode(true);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    int fd = fileinstance_.Open(filename.c_str(), userinfo);
+    int fd = fileinstance_.Open(CURVE_EXCLUSIVE | CURVE_RDWR);
 
     MetaCache* mc = fileinstance_.GetIOManager4File()->GetMetaCache();
 

@@ -90,6 +90,7 @@ enum LIBCURVE_ERROR {
     SNAPSTHO_FROZEN = 29,
     // You must retry it until success
     RETRY_UNTIL_SUCCESS = 30,
+    PERMISSION_DENY = 31,
     // unknown error
     UNKNOWN                 = 100
 };
@@ -112,5 +113,14 @@ typedef struct CurveAioContext {
     LibCurveAioCallBack cb;
     void*               buf;
 } CurveAioContext;
+
+enum CurveOpenFlags {
+    CURVE_EXCLUSIVE = 1 << 0,
+    CURVE_SHARED = 1 << 1,
+    CURVE_RDWR = 1 << 2,
+    CURVE_RDONLY = 1 << 3,
+    CURVE_WRONLY = 1 << 4,
+    CURVE_FORCE_WRITE = 1 << 5,
+};
 
 #endif  // INCLUDE_CLIENT_LIBCURVE_DEFINE_H_

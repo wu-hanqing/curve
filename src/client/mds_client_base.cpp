@@ -33,7 +33,7 @@ using curve::common::Authenticator;
 const char* kRootUserName = "root";
 
 template <typename T>
-void FillClienIpPortIfRegistered(T* request) {
+void FillClientIpPortIfRegistered(T* request) {
     auto& clientinfo = ClientDummyServerInfo::GetInstance();
 
     if (clientinfo.GetRegister()) {
@@ -43,7 +43,9 @@ void FillClienIpPortIfRegistered(T* request) {
 }
 
 void MDSClientBase::OpenFile(const std::string& filename,
-                             const UserInfo_t& userinfo,
+                             const UserInfo& userinfo,
+                             const std::string& openId,
+                             int flags,
                              OpenFileResponse* response,
                              brpc::Controller* cntl,
                              brpc::Channel* channel) {
@@ -52,8 +54,13 @@ void MDSClientBase::OpenFile(const std::string& filename,
     request.set_clientversion(curve::common::CurveVersion());
     FillUserInfo(&request, userinfo);
 
+    auto* context = request.mutable_opencontext();
+    context->set_openflags(flags);
+    context->set_openid(openId);
+
     LOG(INFO) << "OpenFile: filename = " << filename
               << ", owner = " << userinfo.owner
+              << ", open id = " << openId
               << ", log id = " << cntl->log_id();
 
     curve::mds::CurveFSService_Stub stub(channel);
@@ -93,21 +100,23 @@ void MDSClientBase::CreateFile(const std::string& filename,
     stub.CreateFile(cntl, &request, response, NULL);
 }
 
-void MDSClientBase::CloseFile(const std::string& filename,
-                              const UserInfo_t& userinfo,
-                              const std::string& sessionid,
+void MDSClientBase::CloseFile(const FInfo* fileInfo,
                               CloseFileResponse* response,
                               brpc::Controller* cntl,
                               brpc::Channel* channel) {
     CloseFileRequest request;
-    request.set_filename(filename);
-    request.set_sessionid(sessionid);
-    FillUserInfo(&request, userinfo);
-    FillClienIpPortIfRegistered(&request);
+    request.set_filename(fileInfo->fullPathName);
+    request.set_sessionid("");
+    FillUserInfo(&request, fileInfo->userinfo);
+    FillClientIpPortIfRegistered(&request);
 
-    LOG(INFO) << "CloseFile: filename = " << filename
-                << ", owner = " << userinfo.owner
-                << ", sessionid = " << sessionid
+    auto* context = request.mutable_opencontext();
+    context->set_openflags(fileInfo->openflags);
+    context->set_openid(fileInfo->openId);
+
+    LOG(INFO) << "CloseFile: filename = " << fileInfo->fullPathName
+                << ", owner = " << fileInfo->userinfo.owner
+                << ", open id = " << fileInfo->openId
                 << ", log id = " << cntl->log_id();
 
     curve::mds::CurveFSService_Stub stub(channel);
@@ -223,22 +232,23 @@ void MDSClientBase::GetSnapshotSegmentInfo(
     stub.GetSnapShotFileSegment(cntl, &request, response, nullptr);
 }
 
-void MDSClientBase::RefreshSession(const std::string& filename,
-                                   const UserInfo_t& userinfo,
-                                   const std::string& sessionid,
+void MDSClientBase::RefreshSession(const FInfo* fileInfo,
                                    ReFreshSessionResponse* response,
                                    brpc::Controller* cntl,
                                    brpc::Channel* channel) {
     ReFreshSessionRequest request;
-    request.set_filename(filename);
-    request.set_sessionid(sessionid);
+    request.set_filename(fileInfo->fullPathName);
+    request.set_sessionid("");
     request.set_clientversion(curve::common::CurveVersion());
-    FillUserInfo(&request, userinfo);
-    FillClienIpPortIfRegistered(&request);
+    FillUserInfo(&request, fileInfo->userinfo);
 
-    LOG_EVERY_N(INFO, 10) << "RefreshSession: filename = " << filename
-                          << ", owner = " << userinfo.owner
-                          << ", sessionid = " << sessionid
+    auto* context = request.mutable_opencontext();
+    context->set_openflags(fileInfo->openflags);
+    context->set_openid(fileInfo->openId);
+
+    LOG_EVERY_N(INFO, 10) << "RefreshSession: filename = " << fileInfo->filename
+                          << ", owner = " << fileInfo->userinfo.owner
+                          << ", open id = " << fileInfo->openId
                           << ", log id = " << cntl->log_id();
 
     curve::mds::CurveFSService_Stub stub(channel);

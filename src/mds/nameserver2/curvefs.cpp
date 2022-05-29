@@ -33,6 +33,8 @@
 #include "src/mds/nameserver2/namespace_storage.h"
 #include "src/mds/common/mds_define.h"
 #include "src/mds/nameserver2/helper/namespace_helper.h"
+#include "src/common/math_util.h"
+#include "include/client/libcurve_define.h"
 
 using curve::common::TimeUtility;
 using curve::mds::topology::LogicalPool;
@@ -94,14 +96,15 @@ bool CurveFS::InitRecycleBinDir() {
 }
 
 bool CurveFS::Init(std::shared_ptr<NameServerStorage> storage,
-                std::shared_ptr<InodeIDGenerator> InodeIDGenerator,
-                std::shared_ptr<ChunkSegmentAllocator> chunkSegAllocator,
-                std::shared_ptr<CleanManagerInterface> cleanManager,
-                std::shared_ptr<FileRecordManager> fileRecordManager,
-                std::shared_ptr<AllocStatistic> allocStatistic,
-                const struct CurveFSOption &curveFSOptions,
-                std::shared_ptr<Topology> topology,
-                std::shared_ptr<SnapshotCloneClient> snapshotCloneClient) {
+                   std::shared_ptr<InodeIDGenerator> InodeIDGenerator,
+                   std::shared_ptr<ChunkSegmentAllocator> chunkSegAllocator,
+                   std::shared_ptr<CleanManagerInterface> cleanManager,
+                   std::shared_ptr<FileRecordManager> fileRecordManager,
+                   std::shared_ptr<AllocStatistic> allocStatistic,
+                   const struct CurveFSOption &curveFSOptions,
+                   std::shared_ptr<Topology> topology,
+                   std::shared_ptr<SnapshotCloneClient> snapshotCloneClient,
+                   std::shared_ptr<FileWriterLockManager> writerLock) {
     startTime_ = std::chrono::steady_clock::now();
     storage_ = storage;
     InodeIDGenerator_ = InodeIDGenerator;
@@ -117,7 +120,7 @@ bool CurveFS::Init(std::shared_ptr<NameServerStorage> storage,
     maxFileLength_ = curveFSOptions.maxFileLength;
     topology_ = topology;
     snapshotCloneClient_ = snapshotCloneClient;
-
+    fileWriterLockMgr_ = std::move(writerLock);
     InitRootFile();
     bool ret = InitRecycleBinDir();
     if (!ret) {
@@ -155,7 +158,7 @@ void CurveFS::InitRootFile(void) {
 StatusCode CurveFS::WalkPath(const std::string &fileName,
                         FileInfo *fileInfo, std::string  *lastEntry) const  {
     assert(lastEntry != nullptr);
-
+    //* /home/fan/GitHub => "home" "fan" "GitHub"
     std::vector<std::string> paths;
     ::curve::common::SplitString(fileName, "/", &paths);
 
@@ -1374,11 +1377,34 @@ StatusCode CurveFS::GetSnapShotFileSegment(
     }
 }
 
+bool NeedAcquireFileWriterLock(const FileOpenContext* context) {
+    if (context == nullptr) {
+        return false;
+    }
+
+    const auto openflags = context->openflags();
+    if (openflags & CURVE_FORCE_WRITE) {
+        return false;
+    }
+
+    return (openflags & CURVE_SHARED) &&
+           (openflags & (CURVE_RDWR | CURVE_WRONLY));
+}
+
+/*
+*   0) 客户端 open 的时候，mds 的 writer_lock 要做一个判断
+*   1) 他要挂载的文件现在有无 wirter
+*   2)    无 => 当前的writer 直接成为 当前file的 writer
+*   3)    有 => 验证一下当前文件的writer的会话心跳是否正常
+*   4)         => 正常 => 他是 reader
+*   5)         => 不正常 => 他是 writer              
+*/
 StatusCode CurveFS::OpenFile(const std::string &fileName,
                              const std::string &clientIP,
+                             const FileOpenContext* context,
                              ProtoSession *protoSession,
-                             FileInfo  *fileInfo,
-                             CloneSourceSegment* cloneSourceSegment) {
+                             FileInfo *fileInfo,
+                             CloneSourceSegment *cloneSourceSegment) {
     // check the existence of the file
     StatusCode ret;
     ret = GetFileInfo(fileName, fileInfo);
@@ -1396,13 +1422,21 @@ StatusCode CurveFS::OpenFile(const std::string &fileName,
         return ret;
     }
 
-    LOG(INFO) << "FileInfo, " << fileInfo->DebugString();
-
     if (fileInfo->filetype() != FileType::INODE_PAGEFILE) {
         LOG(ERROR) << "OpenFile file type not support, fileName = " << fileName
                    << ", clientIP = " << clientIP
                    << ", filetype = " << fileInfo->filetype();
         return StatusCode::kNotSupported;
+    }
+
+    if (NeedAcquireFileWriterLock(context)) {
+        const bool succ =
+            fileWriterLockMgr_->Lock(fileInfo->id(), context->openid());
+        if (!succ) {
+            LOG(WARNING) << "Failed to acquire writer lock, filename: "
+                         << fileName << ", inodeId: " << fileInfo->id();
+            return StatusCode::kAcquireWriterLockError;
+        }
     }
 
     fileRecordManager_->GetRecordParam(protoSession);
@@ -1415,10 +1449,15 @@ StatusCode CurveFS::OpenFile(const std::string &fileName,
     return StatusCode::kOK;
 }
 
+bool NeedReleaseFileWriterLock(const FileOpenContext* context) {
+    return NeedAcquireFileWriterLock(context);
+}
+
 StatusCode CurveFS::CloseFile(const std::string &fileName,
                               const std::string &sessionID,
                               const std::string &clientIP,
-                              uint32_t clientPort) {
+                              uint32_t clientPort,
+                              const FileOpenContext* context) {
     // check the existence of the file
     FileInfo  fileInfo;
     StatusCode ret;
@@ -1437,20 +1476,36 @@ StatusCode CurveFS::CloseFile(const std::string &fileName,
         return  ret;
     }
 
+    if (NeedReleaseFileWriterLock(context)) {
+        const bool succ =
+            fileWriterLockMgr_->Unlock(fileInfo.id(), context->openid());
+        if (!succ) {
+            LOG(WARNING)
+                << "Failed to release file writer lock, filename: " << fileName
+                << ", owner: " << context->openid();
+            return StatusCode::kReleaseWriterLockError;
+        }
+    }
+
     // remove file record
     fileRecordManager_->RemoveFileRecord(fileName, clientIP, clientPort);
 
     return StatusCode::kOK;
 }
 
+bool NeedUpdateFileWriterLock(const FileOpenContext* context) {
+    return NeedAcquireFileWriterLock(context);
+}
+
 StatusCode CurveFS::RefreshSession(const std::string &fileName,
-                            const std::string &sessionid,
-                            const uint64_t date,
-                            const std::string &signature,
-                            const std::string &clientIP,
-                            uint32_t clientPort,
-                            const std::string &clientVersion,
-                            FileInfo  *fileInfo) {
+                                   const std::string &sessionid,
+                                   const uint64_t date,
+                                   const std::string &signature,
+                                   const std::string &clientIP,
+                                   uint32_t clientPort,
+                                   const std::string &clientVersion,
+                                   const FileOpenContext* context,
+                                   FileInfo *fileInfo) {
     // check the existence of the file
     StatusCode ret;
     ret = GetFileInfo(fileName, fileInfo);
@@ -1480,6 +1535,15 @@ StatusCode CurveFS::RefreshSession(const std::string &fileName,
     // update file records
     fileRecordManager_->UpdateFileRecord(fileName, clientVersion, clientIP,
                                          clientPort);
+
+    if (NeedUpdateFileWriterLock(context)) {
+        const bool succ =
+            fileWriterLockMgr_->Update(fileInfo->id(), context->openid());
+        if (!succ) {
+            LOG(WARNING) << "Failed to update writer lock";
+            return StatusCode::kUpdateWriterLockError;
+        }
+    }
 
     return StatusCode::kOK;
 }

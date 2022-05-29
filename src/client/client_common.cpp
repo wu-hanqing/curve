@@ -22,10 +22,61 @@
 
 #include "src/client/client_common.h"
 
+#include <glog/logging.h>
+
 #include <mutex>
+#include <sstream>
+
+#include "src/common/macros.h"
+
+#define APPEND_FLAGS(openflags, flags) \
+    do {                               \
+        if (openflags & flags) {       \
+            openflags &= ~flags;       \
+            if (sep) {                 \
+                oss << "|";            \
+            }                          \
+            oss << STRINGIFY(flags);   \
+            sep = true;                \
+        }                              \
+    } while (false)
 
 namespace curve {
 namespace client {
+
+std::string OpenflagsToString(int openflags) {
+    if (openflags == 0) {
+        return "Invalid";
+    }
+
+    std::ostringstream oss;
+    bool sep = false;
+
+    APPEND_FLAGS(openflags, CURVE_EXCLUSIVE);
+    APPEND_FLAGS(openflags, CURVE_SHARED);
+    APPEND_FLAGS(openflags, CURVE_RDWR);
+    APPEND_FLAGS(openflags, CURVE_RDONLY);
+    APPEND_FLAGS(openflags, CURVE_WRONLY);
+    APPEND_FLAGS(openflags, CURVE_FORCE_WRITE);
+
+    assert(openflags == 0);
+
+    return oss.str();
+}
+
+bool CheckOpenflags(int openflags) {
+    if (openflags == 0) {
+        return false;
+    }
+
+    if ((openflags & CURVE_EXCLUSIVE) && (openflags & CURVE_SHARED)) {
+        LOG(WARNING)
+            << "Open with `CURVE_EXCLUSIVE` and `CURVE_SHARED` is invalid";
+        return false;
+    }
+
+    return true;
+}
 
 OpenFlags DefaultReadonlyOpenFlags() {
     static OpenFlags readonlyFlags;

@@ -36,6 +36,7 @@ namespace client {
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::Return;
+using ::testing::Matcher;
 using ::testing::SetArgPointee;
 
 const char* kWrongFileName = "xxxxx";
@@ -83,7 +84,7 @@ TEST_F(CurveClientTest, TestUnInit) {
 TEST_F(CurveClientTest, TestOpen) {
     // parse filename and user info failed
     {
-        EXPECT_CALL(*mockFileClient_, Open(_, _, _))
+        EXPECT_CALL(*mockFileClient_, Open(_, _, Matcher<int>(_)))
             .Times(0);
 
         ASSERT_EQ(-LIBCURVE_ERROR::FAILED,
@@ -92,7 +93,7 @@ TEST_F(CurveClientTest, TestOpen) {
 
     // open success
     {
-        EXPECT_CALL(*mockFileClient_, Open(_, _, _))
+        EXPECT_CALL(*mockFileClient_, Open(_, _, Matcher<int>(_)))
             .WillOnce(Return(1));
 
         ASSERT_EQ(1, client_.Open(kValidFileName, {}));
