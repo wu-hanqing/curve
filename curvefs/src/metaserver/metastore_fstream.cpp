@@ -81,6 +81,11 @@ bool MetaStoreFStream::LoadPartition(uint32_t partitionId,
         return false;
     }
 
+    assert(partitionId == std::stoul(key));
+    assert(partitionId == partitionInfo.partitionid());
+    assert(partitionMap_->count(partitionId) == 0);
+    (void)key;
+
     partitionId = partitionInfo.partitionid();
     auto partition = std::make_shared<Partition>(partitionInfo, kvStorage_);
     partitionMap_->emplace(partitionId, partition);

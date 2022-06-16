@@ -79,8 +79,16 @@ static ENTRY_TYPE Str2Type(const std::string& s) {
     return ENTRY_TYPE::UNKNOWN;
 }
 
-static std::string InternalKey(ENTRY_TYPE t,
+inline std::string InternalKey(ENTRY_TYPE t,
                                uint32_t partitionId,
+                               const std::string& ukey) {
+    std::ostringstream oss;
+    oss << Type2Str(t) << partitionId << ":" << ukey;
+    return oss.str();
+}
+
+inline std::string InternalKey(ENTRY_TYPE t,
+                               const std::string& partitionId,
                                const std::string& ukey) {
     std::ostringstream oss;
     oss << Type2Str(t) << partitionId << ":" << ukey;
@@ -214,7 +222,10 @@ class IteratorWrapper : public Iterator {
                     std::shared_ptr<Iterator> iterator)
         : entryType_(entryType),
           partitionId_(partitionId),
-          iterator_(std::move(iterator)) {}
+          iterator_(std::move(iterator)) {
+        assert(entryType_ == ENTRY_TYPE::PARTITION ? (partitionId_ == 0)
+                                                   : (partitionId_ != 0));
+    }
 
     uint64_t Size() override {
         return iterator_->Size();
@@ -233,8 +244,10 @@ class IteratorWrapper : public Iterator {
     }
 
     std::string Key() override {
-        auto key = iterator_->Key();
-        return InternalKey(entryType_, partitionId_, key);
+        const auto key = iterator_->Key();
+        return entryType_ == ENTRY_TYPE::PARTITION
+                   ? InternalKey(entryType_, key, key)
+                   : InternalKey(entryType_, partitionId_, key);
     }
 
     std::string Value() override {
