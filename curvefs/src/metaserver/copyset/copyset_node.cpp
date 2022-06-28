@@ -253,12 +253,15 @@ void CopysetNode::on_apply(braft::Iterator& iter) {
                 << metaClosure->GetOperator()->timerPropose.u_elapsed();
             butil::Timer timer;
             timer.start();
-            auto task =
-                std::bind(&MetaOperator::OnApply, metaClosure->GetOperator(),
-                          iter.index(), doneGuard.release(),
-                          TimeUtility::GetTimeofDayUs());
-            applyQueue_->Push(metaClosure->GetOperator()->HashCode(),
-                              std::move(task));
+            // auto task =
+            //     std::bind(&MetaOperator::OnApply, metaClosure->GetOperator(),
+            //               iter.index(), doneGuard.release(),
+            //               TimeUtility::GetTimeofDayUs());
+            applyQueue_->Push(
+                metaClosure->GetOperator()->HashCode(), &MetaOperator::OnApply,
+                metaClosure->GetOperator(), iter.index(), doneGuard.release(),
+                TimeUtility::GetTimeofDayUs());
+            //   std::move(task));
             timer.stop();
             g_concurrent_apply_wait_latency << timer.u_elapsed();
         } else {
@@ -268,10 +271,13 @@ void CopysetNode::on_apply(braft::Iterator& iter) {
             butil::Timer timer;
             timer.start();
             auto hashcode = metaOperator->HashCode();
-            auto task =
-                std::bind(&MetaOperator::OnApplyFromLog, metaOperator.release(),
-                          TimeUtility::GetTimeofDayUs());
-            applyQueue_->Push(hashcode, std::move(task));
+            // auto task =
+            //     std::bind(&MetaOperator::OnApplyFromLog, metaOperator.release(),
+            //               TimeUtility::GetTimeofDayUs());
+            applyQueue_->Push(hashcode, &MetaOperator::OnApplyFromLog,
+                              metaOperator.release(),
+                              TimeUtility::GetTimeofDayUs());
+            // std::move(task));
             timer.stop();
             g_concurrent_apply_from_log_wait_latency << timer.u_elapsed();
         }

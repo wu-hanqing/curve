@@ -40,19 +40,19 @@ class TaskQueue {
 
     ~TaskQueue() = default;
 
-    template<class F, class... Args>
+    template <class F, class... Args>
     void Push(F&& f, Args&&... args) {
         auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         std::unique_lock<std::mutex> lk(mtx_);
-        notfullcv_.wait(lk, [this]()->bool{return this->tasks_.size() < this->capacity_;});     // NOLINT
-        tasks_.push(task);
+        notfullcv_.wait(lk, [this]() { return tasks_.size() < capacity_; });
+        tasks_.push(std::move(task));
         notemptycv_.notify_one();
-    };                                                                                          // NOLINT
+    }
 
     Task Pop() {
         std::unique_lock<std::mutex> lk(mtx_);
-        notemptycv_.wait(lk, [this]()->bool{return this->tasks_.size() > 0;});                  // NOLINT
-        Task t = tasks_.front();
+        notemptycv_.wait(lk, [this]() { return tasks_.size() > 0; });
+        Task t = std::move(tasks_.front());
         tasks_.pop();
         notfullcv_.notify_one();
         return t;
