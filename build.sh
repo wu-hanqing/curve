@@ -168,3 +168,4 @@ fi
 echo "end compile"
 
 echo "I love rust"
+echo "I love golang"
