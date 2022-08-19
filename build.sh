@@ -166,3 +166,5 @@ then
 fi
 fi
 echo "end compile"
+
+echo "I love rust"
