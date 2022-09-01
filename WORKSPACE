@@ -18,10 +18,12 @@ workspace(name = "curve")
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
-git_repository(
+# git_repository(
+local_repository(
     name = "com_github_baidu_braft",
-    remote = "https://github.com/baidu/braft",
-    commit = "e255c0e4b18d1a8a5d484d4b647f41ff1385ef1e",
+    # remote = "https://gitee.com/baidu/braft",
+    # commit = "e255c0e4b18d1a8a5d484d4b647f41ff1385ef1e",
+    path = "/home/wuhanqing/work/curve-braft",
 )
 
 bind(
@@ -61,7 +63,7 @@ bind(
 # brpc内BUILD文件在依赖glog时, 直接指定的依赖是"@com_github_google_glog//:glog"
 git_repository(
     name = "com_github_google_glog",
-    remote = "https://github.com/google/glog",
+    remote = "https://gitee.com/mirrors/glog",
     commit = "4cc89c9e2b452db579397887c37f302fb28f6ca1",
     patch_args = ["-p1"],
     patches = ["//:thirdparties/glog/glog.patch"],
@@ -99,12 +101,14 @@ bind(
     actual = "@com_github_google_leveldb//:leveldb",
 )
 
-git_repository(
+# git_repository(
+local_repository(
     name = "com_github_apache_brpc",
-    remote = "https://github.com/apache/incubator-brpc",
-    commit = "1b9e00641cbec1c8803da6a1f7f555398c954cb0",
-    patches = ["//:thirdparties/brpc/brpc.patch"],
-    patch_args = ["-p1"],
+    # remote = "https://gitee.com/baidu/BRPC",
+    # commit = "1b9e00641cbec1c8803da6a1f7f555398c954cb0",
+    # patches = ["//:thirdparties/brpc/brpc.patch"],
+    # patch_args = ["-p1"],
+    path = "/home/wuhanqing/work/curve-brpc",
 )
 
 bind(
