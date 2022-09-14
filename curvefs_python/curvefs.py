@@ -114,6 +114,70 @@ except __builtin__.Exception:
         pass
     _newclass = 0
 
+class SwigPyIterator(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, SwigPyIterator, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, SwigPyIterator, name)
+
+    def __init__(self, *args, **kwargs):
+        raise AttributeError("No constructor defined - class is abstract")
+    __repr__ = _swig_repr
+    __swig_destroy__ = _curvefs.delete_SwigPyIterator
+    __del__ = lambda self: None
+
+    def value(self):
+        return _curvefs.SwigPyIterator_value(self)
+
+    def incr(self, n=1):
+        return _curvefs.SwigPyIterator_incr(self, n)
+
+    def decr(self, n=1):
+        return _curvefs.SwigPyIterator_decr(self, n)
+
+    def distance(self, x):
+        return _curvefs.SwigPyIterator_distance(self, x)
+
+    def equal(self, x):
+        return _curvefs.SwigPyIterator_equal(self, x)
+
+    def copy(self):
+        return _curvefs.SwigPyIterator_copy(self)
+
+    def next(self):
+        return _curvefs.SwigPyIterator_next(self)
+
+    def __next__(self):
+        return _curvefs.SwigPyIterator___next__(self)
+
+    def previous(self):
+        return _curvefs.SwigPyIterator_previous(self)
+
+    def advance(self, n):
+        return _curvefs.SwigPyIterator_advance(self, n)
+
+    def __eq__(self, x):
+        return _curvefs.SwigPyIterator___eq__(self, x)
+
+    def __ne__(self, x):
+        return _curvefs.SwigPyIterator___ne__(self, x)
+
+    def __iadd__(self, n):
+        return _curvefs.SwigPyIterator___iadd__(self, n)
+
+    def __isub__(self, n):
+        return _curvefs.SwigPyIterator___isub__(self, n)
+
+    def __add__(self, n):
+        return _curvefs.SwigPyIterator___add__(self, n)
+
+    def __sub__(self, *args):
+        return _curvefs.SwigPyIterator___sub__(self, *args)
+    def __iter__(self):
+        return self
+SwigPyIterator_swigregister = _curvefs.SwigPyIterator_swigregister
+SwigPyIterator_swigregister(SwigPyIterator)
+
 CURVE_INODE_DIRECTORY = _curvefs.CURVE_INODE_DIRECTORY
 CURVE_INODE_PAGEFILE = _curvefs.CURVE_INODE_PAGEFILE
 CURVEINODE_APPENDFILE = _curvefs.CURVEINODE_APPENDFILE
@@ -313,6 +377,48 @@ class DirInfos_t(_object):
 DirInfos_t_swigregister = _curvefs.DirInfos_t_swigregister
 DirInfos_t_swigregister(DirInfos_t)
 
+class CreateContext(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, CreateContext, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, CreateContext, name)
+    __repr__ = _swig_repr
+    __swig_setmethods__["name"] = _curvefs.CreateContext_name_set
+    __swig_getmethods__["name"] = _curvefs.CreateContext_name_get
+    if _newclass:
+        name = _swig_property(_curvefs.CreateContext_name_get, _curvefs.CreateContext_name_set)
+    __swig_setmethods__["length"] = _curvefs.CreateContext_length_set
+    __swig_getmethods__["length"] = _curvefs.CreateContext_length_get
+    if _newclass:
+        length = _swig_property(_curvefs.CreateContext_length_get, _curvefs.CreateContext_length_set)
+    __swig_setmethods__["user"] = _curvefs.CreateContext_user_set
+    __swig_getmethods__["user"] = _curvefs.CreateContext_user_get
+    if _newclass:
+        user = _swig_property(_curvefs.CreateContext_user_get, _curvefs.CreateContext_user_set)
+    __swig_setmethods__["poolset"] = _curvefs.CreateContext_poolset_set
+    __swig_getmethods__["poolset"] = _curvefs.CreateContext_poolset_get
+    if _newclass:
+        poolset = _swig_property(_curvefs.CreateContext_poolset_get, _curvefs.CreateContext_poolset_set)
+    __swig_setmethods__["stripeUnit"] = _curvefs.CreateContext_stripeUnit_set
+    __swig_getmethods__["stripeUnit"] = _curvefs.CreateContext_stripeUnit_get
+    if _newclass:
+        stripeUnit = _swig_property(_curvefs.CreateContext_stripeUnit_get, _curvefs.CreateContext_stripeUnit_set)
+    __swig_setmethods__["stripeCount"] = _curvefs.CreateContext_stripeCount_set
+    __swig_getmethods__["stripeCount"] = _curvefs.CreateContext_stripeCount_get
+    if _newclass:
+        stripeCount = _swig_property(_curvefs.CreateContext_stripeCount_get, _curvefs.CreateContext_stripeCount_set)
+
+    def __init__(self):
+        this = _curvefs.new_CreateContext()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _curvefs.delete_CreateContext
+    __del__ = lambda self: None
+CreateContext_swigregister = _curvefs.CreateContext_swigregister
+CreateContext_swigregister(CreateContext)
+
 
 def Init(path):
     return _curvefs.Init(path)
@@ -374,13 +480,13 @@ def Unlink(filename, info):
     return _curvefs.Unlink(filename, info)
 Unlink = _curvefs.Unlink
 
-def DeleteForce(filename, info):
-    return _curvefs.DeleteForce(filename, info)
-DeleteForce = _curvefs.DeleteForce
-
 def Recover(filename, info, fileId):
     return _curvefs.Recover(filename, info, fileId)
 Recover = _curvefs.Recover
+
+def DeleteForce(filename, info):
+    return _curvefs.DeleteForce(filename, info)
+DeleteForce = _curvefs.DeleteForce
 
 def Listdir(dirpath, info):
     return _curvefs.Listdir(dirpath, info)
@@ -432,8 +538,8 @@ class CBDClient(_object):
     def Create(self, filename, userInfo, size):
         return _curvefs.CBDClient_Create(self, filename, userInfo, size)
 
-    def Create2(self, filename, userInfo, size, stripeUnit, stripeCount):
-        return _curvefs.CBDClient_Create2(self, filename, userInfo, size, stripeUnit, stripeCount)
+    def Create2(self, context):
+        return _curvefs.CBDClient_Create2(self, context)
 
     def Unlink(self, filename, info):
         return _curvefs.CBDClient_Unlink(self, filename, info)
@@ -479,8 +585,124 @@ class CBDClient(_object):
 
     def GetClusterId(self):
         return _curvefs.CBDClient_GetClusterId(self)
+
+    def ListPoolset(self):
+        return _curvefs.CBDClient_ListPoolset(self)
 CBDClient_swigregister = _curvefs.CBDClient_swigregister
 CBDClient_swigregister(CBDClient)
+
+class VectorString(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, VectorString, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, VectorString, name)
+    __repr__ = _swig_repr
+
+    def iterator(self):
+        return _curvefs.VectorString_iterator(self)
+    def __iter__(self):
+        return self.iterator()
+
+    def __nonzero__(self):
+        return _curvefs.VectorString___nonzero__(self)
+
+    def __bool__(self):
+        return _curvefs.VectorString___bool__(self)
+
+    def __len__(self):
+        return _curvefs.VectorString___len__(self)
+
+    def __getslice__(self, i, j):
+        return _curvefs.VectorString___getslice__(self, i, j)
+
+    def __setslice__(self, *args):
+        return _curvefs.VectorString___setslice__(self, *args)
+
+    def __delslice__(self, i, j):
+        return _curvefs.VectorString___delslice__(self, i, j)
+
+    def __delitem__(self, *args):
+        return _curvefs.VectorString___delitem__(self, *args)
+
+    def __getitem__(self, *args):
+        return _curvefs.VectorString___getitem__(self, *args)
+
+    def __setitem__(self, *args):
+        return _curvefs.VectorString___setitem__(self, *args)
+
+    def pop(self):
+        return _curvefs.VectorString_pop(self)
+
+    def append(self, x):
+        return _curvefs.VectorString_append(self, x)
+
+    def empty(self):
+        return _curvefs.VectorString_empty(self)
+
+    def size(self):
+        return _curvefs.VectorString_size(self)
+
+    def swap(self, v):
+        return _curvefs.VectorString_swap(self, v)
+
+    def begin(self):
+        return _curvefs.VectorString_begin(self)
+
+    def end(self):
+        return _curvefs.VectorString_end(self)
+
+    def rbegin(self):
+        return _curvefs.VectorString_rbegin(self)
+
+    def rend(self):
+        return _curvefs.VectorString_rend(self)
+
+    def clear(self):
+        return _curvefs.VectorString_clear(self)
+
+    def get_allocator(self):
+        return _curvefs.VectorString_get_allocator(self)
+
+    def pop_back(self):
+        return _curvefs.VectorString_pop_back(self)
+
+    def erase(self, *args):
+        return _curvefs.VectorString_erase(self, *args)
+
+    def __init__(self, *args):
+        this = _curvefs.new_VectorString(*args)
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+
+    def push_back(self, x):
+        return _curvefs.VectorString_push_back(self, x)
+
+    def front(self):
+        return _curvefs.VectorString_front(self)
+
+    def back(self):
+        return _curvefs.VectorString_back(self)
+
+    def assign(self, n, x):
+        return _curvefs.VectorString_assign(self, n, x)
+
+    def resize(self, *args):
+        return _curvefs.VectorString_resize(self, *args)
+
+    def insert(self, *args):
+        return _curvefs.VectorString_insert(self, *args)
+
+    def reserve(self, n):
+        return _curvefs.VectorString_reserve(self, n)
+
+    def capacity(self):
+        return _curvefs.VectorString_capacity(self)
+    __swig_destroy__ = _curvefs.delete_VectorString
+    __del__ = lambda self: None
+VectorString_swigregister = _curvefs.VectorString_swigregister
+VectorString_swigregister(VectorString)
 
 # This file is compatible with both classic and new-style classes.
 

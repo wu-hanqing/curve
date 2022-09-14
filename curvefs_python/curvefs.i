@@ -8,6 +8,11 @@
 
 %include <stdint.i>
 %include <std_string.i>
+%include <std_vector.i>
 %include "curve_type.h"
 %include "libcurvefs.h"
 %include "cbd_client.h"
+
+namespace std {
+    %template(VectorString) vector<string>;
+}

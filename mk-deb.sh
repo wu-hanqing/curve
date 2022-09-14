@@ -108,13 +108,13 @@ function build_curvefs_python() {
         rm -rf ./bazel-bin/curvefs_python
 
         if [ "$1" = "release" ]; then
-            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --copt -O2 -s \
+            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --copt -O2 \
                 --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
                 --copt -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
                 -L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
                 ${bazelflags}
         else
-            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s \
+            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --compilation_mode=dbg \
                 --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
                 --copt -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
                 -L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
@@ -185,7 +185,7 @@ fi
 
 if [ "$1" = "debug" ]
 then
-bazel build ... --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s --define=with_glog=true \
+bazel build ... --copt -DHAVE_ZLIB=1 --compilation_mode=dbg --define=with_glog=true \
 --define=libunwind=true --copt -DGFLAGS_NS=google --copt \
 -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --copt -DCURVEVERSION=${curve_version} \
 --linkopt -L/usr/local/lib ${bazelflags}
@@ -200,7 +200,7 @@ then
     echo "configure failed"
     exit
 fi
-bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s \
+bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --compilation_mode=dbg \
 --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
 --copt \
 -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
@@ -212,7 +212,7 @@ then
     exit
 fi
 else
-bazel build ... --copt -DHAVE_ZLIB=1 --copt -O2 -s --define=with_glog=true \
+bazel build ... --copt -DHAVE_ZLIB=1 --copt -O2 --define=with_glog=true \
 --define=libunwind=true --copt -DGFLAGS_NS=google --copt \
 -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --copt -DCURVEVERSION=${curve_version} \
 --linkopt -L/usr/local/lib ${bazelflags}
@@ -227,7 +227,7 @@ then
     echo "configure failed"
     exit
 fi
-bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --copt -O2 -s \
+bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --copt -O2 \
 --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
 --copt \
 -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
