@@ -59,6 +59,18 @@ class TestTopology : public ::testing::Test {
     }
 
  protected:
+    void PrepareAddPoolset(PoolsetIdType id = 0x61,
+                           const std::string& name = "ssdPoolset1",
+                           const std::string& type = "SSD",
+                           const std::string& desc = "descPoolset") {
+        Poolset poolset(id, name, type, desc);
+        EXPECT_CALL(*storage_, StoragePoolset(_))
+            .WillOnce(Return(true));
+
+        int ret = topology_->AddPoolset(poolset);
+        ASSERT_EQ(kTopoErrCodeSuccess, ret);
+    }
+
     void PrepareAddLogicalPool(PoolIdType id = 0x01,
             const std::string &name = "testLogicalPool",
             PoolIdType phyPoolId = 0x11,
@@ -89,10 +101,12 @@ class TestTopology : public ::testing::Test {
 
     void PrepareAddPhysicalPool(PoolIdType id = 0x11,
                  const std::string &name = "testPhysicalPool",
+                 PoolsetIdType pid = 0x61,
                  const std::string &desc = "descPhysicalPool",
                  uint64_t diskCapacity = 0) {
         PhysicalPool pool(id,
                 name,
+                pid,
                 desc);
         pool.SetDiskCapacity(diskCapacity);
         EXPECT_CALL(*storage_, StoragePhysicalPool(_))
@@ -194,6 +208,7 @@ TEST_F(TestTopology, test_init_success) {
     EXPECT_CALL(*storage_, StorageClusterInfo(_))
         .WillOnce(Return(true));
 
+    std::unordered_map<PoolsetIdType, Poolset> poolsetMap_;
     std::unordered_map<PoolIdType, LogicalPool> logicalPoolMap_;
     std::unordered_map<PoolIdType, PhysicalPool> physicalPoolMap_;
     std::unordered_map<ZoneIdType, Zone> zoneMap_;
@@ -205,7 +220,7 @@ TEST_F(TestTopology, test_init_success) {
         LogicalPool::RedundanceAndPlaceMentPolicy(),
         LogicalPool::UserPolicy(),
         0, false, true);
-    physicalPoolMap_[0x11] = PhysicalPool(0x11, "pPool1", "des1");
+    physicalPoolMap_[0x11] = PhysicalPool(0x11, "pPool1", 0X61, "des1");
     zoneMap_[0x21] = Zone(0x21, "zone1", 0x11, "desc1");
     serverMap_[0x31] = Server(0x31, "server1", "127.0.0.1", 8200,
         "127.0.0.1", 8200, 0x21, 0x11, "desc1");
@@ -214,6 +229,9 @@ TEST_F(TestTopology, test_init_success) {
     copySetMap_[std::pair<PoolIdType, CopySetIdType>(0x01, 0x51)] =
         CopySetInfo(0x01, 0x51);
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(DoAll(SetArgPointee<0>(poolsetMap_),
+                    Return(true)));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(DoAll(SetArgPointee<0>(logicalPoolMap_),
                     Return(true)));
@@ -233,6 +251,7 @@ TEST_F(TestTopology, test_init_success) {
         .WillOnce(DoAll(SetArgPointee<0>(copySetMap_),
                     Return(true)));
 
+    EXPECT_CALL(*idGenerator_, initPoolsetIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initLogicalPoolIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initPhysicalPoolIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initZoneIdGenerator(_));
@@ -283,6 +302,8 @@ TEST_F(TestTopology, test_init_loadLogicalPoolFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(false));
 
@@ -299,6 +320,8 @@ TEST_F(TestTopology, test_init_LoadPhysicalPoolFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -319,6 +342,8 @@ TEST_F(TestTopology, test_init_LoadZoneFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -341,7 +366,8 @@ TEST_F(TestTopology, test_init_LoadServerFail) {
     EXPECT_CALL(*storage_, LoadClusterInfo(_))
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
-
+     EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -368,6 +394,8 @@ TEST_F(TestTopology, test_init_LoadChunkServerFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -397,6 +425,8 @@ TEST_F(TestTopology, test_init_LoadCopysetFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -422,6 +452,7 @@ TEST_F(TestTopology, test_init_LoadCopysetFail) {
 }
 
 TEST_F(TestTopology, test_AddLogicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     LogicalPool pool(0x01,
@@ -443,6 +474,7 @@ TEST_F(TestTopology, test_AddLogicalPool_success) {
 }
 
 TEST_F(TestTopology, test_AddLogicalPool_IdDuplicated) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     PoolIdType id = 0x01;
@@ -464,6 +496,7 @@ TEST_F(TestTopology, test_AddLogicalPool_IdDuplicated) {
 }
 
 TEST_F(TestTopology, test_AddLogicalPool_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     LogicalPool pool(0x01,
@@ -485,6 +518,7 @@ TEST_F(TestTopology, test_AddLogicalPool_StorageFail) {
 }
 
 TEST_F(TestTopology, test_AddLogicalPool_PhysicalPoolNotFound) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     LogicalPool pool(0x01,
@@ -504,8 +538,10 @@ TEST_F(TestTopology, test_AddLogicalPool_PhysicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, test_AddPhysicalPool_success) {
+    PrepareAddPoolset();
     PhysicalPool pool(0x11,
             "test1",
+            0X61,
             "desc");
     EXPECT_CALL(*storage_, StoragePhysicalPool(_))
         .WillOnce(Return(true));
@@ -516,10 +552,12 @@ TEST_F(TestTopology, test_AddPhysicalPool_success) {
 
 
 TEST_F(TestTopology, test_AddPhysicalPool_IdDuplicated) {
+    PrepareAddPoolset();
     PoolIdType id = 0x11;
-
+    PoolsetIdType pid = 0x61;
     PhysicalPool pool(id,
             "test1",
+            pid,
             "desc");
     PrepareAddPhysicalPool(id);
     int ret = topology_->AddPhysicalPool(pool);
@@ -527,8 +565,10 @@ TEST_F(TestTopology, test_AddPhysicalPool_IdDuplicated) {
 }
 
 TEST_F(TestTopology, test_AddPhysicalPool_StorageFail) {
+    PrepareAddPoolset();
     PhysicalPool pool(0x11,
             "test1",
+            0X61,
             "desc");
     EXPECT_CALL(*storage_, StoragePhysicalPool(_))
         .WillOnce(Return(false));
@@ -538,6 +578,7 @@ TEST_F(TestTopology, test_AddPhysicalPool_StorageFail) {
 }
 
 TEST_F(TestTopology, test_AddZone_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -563,6 +604,7 @@ TEST_F(TestTopology, test_AddZone_success) {
 }
 
 TEST_F(TestTopology, test_AddZone_IdDuplicated) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -578,6 +620,7 @@ TEST_F(TestTopology, test_AddZone_IdDuplicated) {
 }
 
 TEST_F(TestTopology, test_AddZone_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
 
@@ -595,6 +638,7 @@ TEST_F(TestTopology, test_AddZone_StorageFail) {
 }
 
 TEST_F(TestTopology, test_AddZone_PhysicalPoolNotFound) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
 
@@ -610,6 +654,7 @@ TEST_F(TestTopology, test_AddZone_PhysicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, test_AddServer_success) {
+    PrepareAddPoolset();
     ServerIdType id = 0x31;
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
@@ -641,6 +686,7 @@ TEST_F(TestTopology, test_AddServer_success) {
 }
 
 TEST_F(TestTopology, test_AddServer_IdDuplicated) {
+    PrepareAddPoolset();
     ServerIdType id = 0x31;
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
@@ -664,6 +710,7 @@ TEST_F(TestTopology, test_AddServer_IdDuplicated) {
 }
 
 TEST_F(TestTopology, test_AddServer_StorageFail) {
+    PrepareAddPoolset();
     ServerIdType id = 0x31;
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
@@ -690,6 +737,7 @@ TEST_F(TestTopology, test_AddServer_StorageFail) {
 
 
 TEST_F(TestTopology, test_AddServer_ZoneNotFound) {
+    PrepareAddPoolset();
     ServerIdType id = 0x31;
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
@@ -710,6 +758,7 @@ TEST_F(TestTopology, test_AddServer_ZoneNotFound) {
 
 
 TEST_F(TestTopology, test_AddChunkServers_success) {
+    PrepareAddPoolset();
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
 
@@ -749,6 +798,7 @@ TEST_F(TestTopology, test_AddChunkServers_success) {
 }
 
 TEST_F(TestTopology, test_AddChunkServer_IdDuplicated) {
+    PrepareAddPoolset();
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
 
@@ -774,6 +824,7 @@ TEST_F(TestTopology, test_AddChunkServer_IdDuplicated) {
 }
 
 TEST_F(TestTopology, test_AddChunkServer_StorageFail) {
+    PrepareAddPoolset();
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
 
@@ -798,6 +849,7 @@ TEST_F(TestTopology, test_AddChunkServer_StorageFail) {
 }
 
 TEST_F(TestTopology, test_AddChunkServer_ServerNotFound) {
+    PrepareAddPoolset();
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
 
@@ -815,6 +867,7 @@ TEST_F(TestTopology, test_AddChunkServer_ServerNotFound) {
 }
 
 TEST_F(TestTopology, test_RemoveLogicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     PoolIdType id = 0x01;
@@ -829,6 +882,7 @@ TEST_F(TestTopology, test_RemoveLogicalPool_success) {
 }
 
 TEST_F(TestTopology, test_RemoveLogicalPool_LogicalPoolNotFound) {
+    PrepareAddPoolset();
     PoolIdType id = 0x01;
 
     int ret = topology_->RemoveLogicalPool(id);
@@ -837,6 +891,7 @@ TEST_F(TestTopology, test_RemoveLogicalPool_LogicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, test_RemoveLogicalPool_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     PoolIdType id = 0x01;
@@ -851,6 +906,7 @@ TEST_F(TestTopology, test_RemoveLogicalPool_StorageFail) {
 }
 
 TEST_F(TestTopology, test_RemovePhysicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType poolId = 0x11;
     PrepareAddPhysicalPool(poolId);
 
@@ -863,6 +919,7 @@ TEST_F(TestTopology, test_RemovePhysicalPool_success) {
 }
 
 TEST_F(TestTopology, test_RemovePhysicalPool_PhysicalPoolNotFound) {
+    PrepareAddPoolset();
     PoolIdType poolId = 0x11;
 
     int ret = topology_->RemovePhysicalPool(poolId);
@@ -871,6 +928,7 @@ TEST_F(TestTopology, test_RemovePhysicalPool_PhysicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, test_RemovePhysicalPool_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType poolId = 0x11;
     PrepareAddPhysicalPool(poolId);
 
@@ -883,6 +941,7 @@ TEST_F(TestTopology, test_RemovePhysicalPool_StorageFail) {
 }
 
 TEST_F(TestTopology, test_RemoveZone_success) {
+    PrepareAddPoolset();
     ZoneIdType zoneId = 0x21;
     PoolIdType poolId = 0x11;
     PrepareAddPhysicalPool(poolId);
@@ -911,6 +970,7 @@ TEST_F(TestTopology, test_RemoveZone_ZoneNotFound) {
 }
 
 TEST_F(TestTopology, test_RemoveZone_StorageFail) {
+    PrepareAddPoolset();
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool();
     PrepareAddZone(zoneId);
@@ -923,6 +983,7 @@ TEST_F(TestTopology, test_RemoveZone_StorageFail) {
 }
 
 TEST_F(TestTopology, test_RemoveServer_success) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool();
@@ -957,6 +1018,7 @@ TEST_F(TestTopology, test_RemoveSever_ServerNotFound) {
 }
 
 TEST_F(TestTopology, test_RemoveServer_StorageFail) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool();
@@ -979,7 +1041,7 @@ TEST_F(TestTopology, test_RemoveServer_StorageFail) {
 TEST_F(TestTopology, test_RemoveChunkServer_success) {
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
-
+    PrepareAddPoolset();
     PrepareAddPhysicalPool();
     PrepareAddZone();
     PrepareAddServer(serverId);
@@ -1017,7 +1079,7 @@ TEST_F(TestTopology, test_RemoveChunkServer_ChunkSeverNotFound) {
 TEST_F(TestTopology, test_RemoveChunkServer_StorageFail) {
     ChunkServerIdType csId = 0x41;
     ServerIdType serverId = 0x31;
-
+    PrepareAddPoolset();
     PrepareAddPhysicalPool();
     PrepareAddZone();
     PrepareAddServer(serverId);
@@ -1040,6 +1102,7 @@ TEST_F(TestTopology, test_RemoveChunkServer_StorageFail) {
 }
 
 TEST_F(TestTopology, UpdateLogicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1092,6 +1155,7 @@ TEST_F(TestTopology, UpdateLogicalPool_LogicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, UpdateLogicalPool_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1122,6 +1186,7 @@ TEST_F(TestTopology, UpdateLogicalPool_StorageFail) {
 }
 
 TEST_F(TestTopology, UpdateLogicalPoolAllocateStatus_success) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1184,6 +1249,7 @@ TEST_F(TestTopology, UpdateLogicalPoolAllocateStatus_LogicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, UpdateLogicalPoolAllocateStatus_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1205,6 +1271,7 @@ TEST_F(TestTopology, UpdateLogicalPoolAllocateStatus_StorageFail) {
 }
 
 TEST_F(TestTopology, TestUpdateLogicalPoolScanState) {
+    PrepareAddPoolset();
     PoolIdType lpid = 1;  // logicalPoolId
     PoolIdType ppid = 1;  // physicalPoolId
     PrepareAddPhysicalPool(ppid);
@@ -1248,13 +1315,17 @@ TEST_F(TestTopology, TestUpdateLogicalPoolScanState) {
 }
 
 TEST_F(TestTopology, UpdatePhysicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
+    PoolsetIdType poolsetId = 0x61;
     PrepareAddPhysicalPool(physicalPoolId,
             "name1",
+             poolsetId,
             "desc1");
 
     PhysicalPool newPool(physicalPoolId,
             "name1",
+            poolsetId,
             "desc2");
 
     EXPECT_CALL(*storage_, UpdatePhysicalPool(_))
@@ -1270,9 +1341,10 @@ TEST_F(TestTopology, UpdatePhysicalPool_success) {
 
 TEST_F(TestTopology, UpdatePhysicalPool_PhysicalPoolNotFound) {
     PoolIdType physicalPoolId = 0x11;
-
+    PoolIdType pid = 0x61;
     PhysicalPool newPool(physicalPoolId,
             "name1",
+            pid,
             "desc2");
 
     int ret = topology_->UpdatePhysicalPool(newPool);
@@ -1281,13 +1353,17 @@ TEST_F(TestTopology, UpdatePhysicalPool_PhysicalPoolNotFound) {
 
 
 TEST_F(TestTopology, UpdatePhysicalPool_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
+    PoolsetIdType poolsetId = 0x61;
     PrepareAddPhysicalPool(physicalPoolId,
             "name1",
+            poolsetId,
             "desc1");
 
     PhysicalPool newPool(physicalPoolId,
             "name1",
+            poolsetId,
             "desc2");
 
     EXPECT_CALL(*storage_, UpdatePhysicalPool(_))
@@ -1300,6 +1376,7 @@ TEST_F(TestTopology, UpdatePhysicalPool_StorageFail) {
 
 
 TEST_F(TestTopology, UpdateZone_success) {
+    PrepareAddPoolset();
     ZoneIdType zoneId = 0x21;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1334,6 +1411,7 @@ TEST_F(TestTopology, UpdateZone_ZoneNotFound) {
 }
 
 TEST_F(TestTopology, UpdateZone_StorageFail) {
+    PrepareAddPoolset();
     ZoneIdType zoneId = 0x21;
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1354,6 +1432,7 @@ TEST_F(TestTopology, UpdateZone_StorageFail) {
 }
 
 TEST_F(TestTopology, UpdateServer_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1406,6 +1485,7 @@ TEST_F(TestTopology, UpdateServer_ServerNotFound) {
 }
 
 TEST_F(TestTopology, UpdateServer_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1440,6 +1520,7 @@ TEST_F(TestTopology, UpdateServer_StorageFail) {
 
 
 TEST_F(TestTopology, UpdateChunkServerTopo_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1470,6 +1551,7 @@ TEST_F(TestTopology, UpdateChunkServerTopo_success) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerTopo_UpdateServerSuccess) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1520,6 +1602,7 @@ TEST_F(TestTopology, UpdateChunkServerTopo_ChunkServerNotFound) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerTopo_StorageFail) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1550,6 +1633,7 @@ TEST_F(TestTopology, UpdateChunkServerTopo_StorageFail) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerDiskStatus_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1598,6 +1682,7 @@ TEST_F(TestTopology, UpdateChunkServerDiskStatus_ChunkServerNotFound) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerRwStateToStorage_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1626,6 +1711,7 @@ TEST_F(TestTopology, UpdateChunkServerRwStateToStorage_success) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerRwStateTestPhysicalPoolCapacity_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1702,6 +1788,7 @@ TEST_F(TestTopology, UpdateChunkServerRwState_ChunkServerNotFound) {
 }
 
 TEST_F(TestTopology, UpdateChunkServerStartUpTime_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1730,6 +1817,7 @@ TEST_F(TestTopology, UpdateChunkServerStartUpTime_ChunkServerNotFound) {
 }
 
 TEST_F(TestTopology, FindLogicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     std::string logicalPoolName = "logicalPool1";
     PoolIdType physicalPoolId = 0x11;
@@ -1752,6 +1840,7 @@ TEST_F(TestTopology, FindLogicalPool_LogicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, FindPhysicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     std::string physicalPoolName = "physicalPoolName";
     PrepareAddPhysicalPool(physicalPoolId, physicalPoolName);
@@ -1768,6 +1857,7 @@ TEST_F(TestTopology, FindPhysicalPool_PhysicalPoolNotFound) {
 
 
 TEST_F(TestTopology, FindZone_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     std::string physicalPoolName = "physicalPoolName";
     ZoneIdType zoneId = 0x21;
@@ -1787,6 +1877,7 @@ TEST_F(TestTopology, FindZone_ZoneNotFound) {
 }
 
 TEST_F(TestTopology, FindZone_success2) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     std::string physicalPoolName = "physicalPoolName";
     ZoneIdType zoneId = 0x21;
@@ -1807,6 +1898,7 @@ TEST_F(TestTopology, FindZone_ZoneNotFound2) {
 }
 
 TEST_F(TestTopology, FindServerByHostName_success) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     std::string hostName = "host1";
     PrepareAddPhysicalPool();
@@ -1826,6 +1918,7 @@ TEST_F(TestTopology, FindServerByHostName_ServerNotFound) {
 }
 
 TEST_F(TestTopology, FindServerByHostIpPort_success) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     std::string hostName = "host1";
     std::string internalHostIp = "ip1";
@@ -1847,6 +1940,7 @@ TEST_F(TestTopology, FindServerByHostIpPort_success) {
 }
 
 TEST_F(TestTopology, FindSeverByHostIp_ServerNotFound) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     std::string hostName = "host1";
     std::string internalHostIp = "ip1";
@@ -1866,6 +1960,7 @@ TEST_F(TestTopology, FindSeverByHostIp_ServerNotFound) {
 }
 
 TEST_F(TestTopology, FindChunkServerNotRetired_success) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     std::string hostName = "host1";
     std::string internalHostIp = "ip1";
@@ -1894,6 +1989,7 @@ TEST_F(TestTopology, FindChunkServerNotRetired_success) {
 }
 
 TEST_F(TestTopology, FindChunkServerNotRetired_ChunkServerNotFound) {
+    PrepareAddPoolset();
     ServerIdType serverId = 0x31;
     std::string hostName = "host1";
     std::string internalHostIp = "ip1";
@@ -1922,6 +2018,7 @@ TEST_F(TestTopology, FindChunkServerNotRetired_ChunkServerNotFound) {
 }
 
 TEST_F(TestTopology, GetLogicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     PoolIdType logicalPoolId = 0x01;
@@ -1939,6 +2036,7 @@ TEST_F(TestTopology, GetLogicalPool_LogicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, GetPhysicalPool_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     PrepareAddPhysicalPool(physicalPoolId);
     PhysicalPool pool;
@@ -1954,6 +2052,7 @@ TEST_F(TestTopology, GetPhysicalPool_PhysicalPoolNotFound) {
 }
 
 TEST_F(TestTopology, GetZone_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     PrepareAddPhysicalPool(physicalPoolId);
@@ -1971,6 +2070,7 @@ TEST_F(TestTopology, GetZone_ZoneNotFound) {
 }
 
 TEST_F(TestTopology, GetServer_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1984,6 +2084,7 @@ TEST_F(TestTopology, GetServer_success) {
 
 
 TEST_F(TestTopology, GetServer_GetServerNotFound) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -1996,6 +2097,7 @@ TEST_F(TestTopology, GetServer_GetServerNotFound) {
 }
 
 TEST_F(TestTopology, GetChunkServer_success) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -2010,6 +2112,7 @@ TEST_F(TestTopology, GetChunkServer_success) {
 }
 
 TEST_F(TestTopology, GetChunkServer_ChunkServerNotFound) {
+    PrepareAddPoolset();
     PoolIdType physicalPoolId = 0x11;
     ZoneIdType zoneId = 0x21;
     ServerIdType serverId = 0x31;
@@ -2031,6 +2134,7 @@ TEST_F(TestTopology, GetChunkServerInCluster_success) {
     ChunkServerIdType csId = 0x41;
     ChunkServerIdType csId2 = 0x42;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2048,6 +2152,7 @@ TEST_F(TestTopology, GetServerInCluster_success) {
     ServerIdType serverId = 0x31;
     ServerIdType serverId2 = 0x32;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2063,6 +2168,7 @@ TEST_F(TestTopology, GetZoneInCluster_success) {
     ZoneIdType zoneId = 0x21;
     ZoneIdType zoneId2 = 0x22;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddZone(zoneId2);
@@ -2076,6 +2182,7 @@ TEST_F(TestTopology, GetPhysicalPoolInCluster_success) {
     PoolIdType physicalPoolId = 0x11;
     PoolIdType physicalPoolId2 = 0x12;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddPhysicalPool(physicalPoolId2);
 
@@ -2089,6 +2196,7 @@ TEST_F(TestTopology, GetLogicalPoolInCluster_success) {
     PoolIdType logicalPoolId = 0x01;
     PoolIdType logicalPoolId2 = 0x02;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddLogicalPool(logicalPoolId, "name", physicalPoolId);
     PrepareAddLogicalPool(logicalPoolId2, "name2", physicalPoolId);
@@ -2105,6 +2213,7 @@ TEST_F(TestTopology, GetChunkServerInServer_success) {
     ChunkServerIdType csId = 0x41;
     ChunkServerIdType csId2 = 0x42;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2131,6 +2240,7 @@ TEST_F(TestTopology, GetChunkServerInZone_success) {
     ChunkServerIdType csId = 0x41;
     ChunkServerIdType csId2 = 0x42;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2150,6 +2260,7 @@ TEST_F(TestTopology, GetChunkServerInPhysicalPool_success) {
     ChunkServerIdType csId = 0x41;
     ChunkServerIdType csId2 = 0x42;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2168,6 +2279,7 @@ TEST_F(TestTopology, GetServerInZone_success) {
     ServerIdType serverId = 0x31;
     ServerIdType serverId2 = 0x32;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2190,6 +2302,7 @@ TEST_F(TestTopology, GetServerInPhysicalPool_success) {
     ServerIdType serverId = 0x31;
     ServerIdType serverId2 = 0x32;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2206,6 +2319,7 @@ TEST_F(TestTopology, GetZoneInPhysicalPool_success) {
     ZoneIdType zoneId = 0x21;
     ZoneIdType zoneId2 = 0x22;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddZone(zoneId2);
@@ -2228,6 +2342,7 @@ TEST_F(TestTopology, GetLogicalPoolInPhysicalPool_success) {
     PoolIdType logicalPoolId = 0x01;
     PoolIdType logicalPoolId2 = 0x02;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddLogicalPool(logicalPoolId, "logicalPool1", physicalPoolId);
     PrepareAddLogicalPool(logicalPoolId2, "logicalPool2", physicalPoolId);
@@ -2246,6 +2361,7 @@ TEST_F(TestTopology, GetChunkServerInLogicalPool_success) {
     ChunkServerIdType csId2 = 0x42;
     PoolIdType logicalPoolId = 0x01;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId, "name", physicalPoolId);
     PrepareAddServer(
@@ -2274,6 +2390,7 @@ TEST_F(TestTopology, GetServerInLogicalPool_success) {
     ServerIdType serverId2 = 0x32;
     PoolIdType logicalPoolId = 0x01;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddServer(serverId);
@@ -2299,6 +2416,7 @@ TEST_F(TestTopology, GetZoneInLogicalPool_success) {
     ZoneIdType zoneId2 = 0x22;
     PoolIdType logicalPoolId = 0x01;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(zoneId);
     PrepareAddZone(zoneId2);
@@ -2322,6 +2440,7 @@ TEST_F(TestTopology, AddCopySet_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2355,6 +2474,7 @@ TEST_F(TestTopology, AddCopySet_IdDuplicated) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2387,6 +2507,7 @@ TEST_F(TestTopology, AddCopySet_LogicalPoolNotFound) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2418,6 +2539,7 @@ TEST_F(TestTopology, AddCopySet_StorageFail) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2451,6 +2573,7 @@ TEST_F(TestTopology, RemoveCopySet_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2485,6 +2608,7 @@ TEST_F(TestTopology, RemoveCopySet_storageFail) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2519,6 +2643,7 @@ TEST_F(TestTopology, RemoveCopySet_CopySetNotFound) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2550,6 +2675,7 @@ TEST_F(TestTopology, UpdateCopySetTopo_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2597,6 +2723,7 @@ TEST_F(TestTopology, UpdateCopySetTopo_CopySetNotFound) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2636,6 +2763,7 @@ TEST_F(TestTopology, GetCopySet_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2669,6 +2797,7 @@ TEST_F(TestTopology, GetCopySet_CopysetNotFound) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2702,6 +2831,7 @@ TEST_F(TestTopology, GetCopySetsInLogicalPool_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2732,6 +2862,7 @@ TEST_F(TestTopology, GetCopySetsInCluster_success) {
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -2758,6 +2889,7 @@ TEST_F(TestTopology, GetCopySetsInCluster_success) {
 }
 
 TEST_F(TestTopology, GetCopySetsInChunkServer_success) {
+    PrepareAddPoolset();
     PoolIdType logicalPoolId = 0x01;
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;

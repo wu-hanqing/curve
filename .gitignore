@@ -144,3 +144,8 @@ tools-v2/proto/curvefs/*
 tools-v2/*/*.test
 tools-v2/__debug_bin
 tools-v2/vendor/
+
+test/integration/*.conf
+test/integration/client/config/client.conf*
+
+.pre-commit-config.yaml

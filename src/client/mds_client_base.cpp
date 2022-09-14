@@ -29,6 +29,7 @@ namespace curve {
 namespace client {
 
 using curve::common::Authenticator;
+using curve::mds::topology::TopologyService_Stub;
 
 const char* kRootUserName = "root";
 
@@ -60,34 +61,36 @@ void MDSClientBase::OpenFile(const std::string& filename,
     stub.OpenFile(cntl, &request, response, nullptr);
 }
 
-void MDSClientBase::CreateFile(const std::string& filename,
-                               const UserInfo_t& userinfo,
-                               size_t size,
-                               bool normalFile,
-                               uint64_t stripeUnit,
-                               uint64_t stripeCount,
+void MDSClientBase::CreateFile(const CreateFileContext& context,
                                CreateFileResponse* response,
                                brpc::Controller* cntl,
                                brpc::Channel* channel) {
     CreateFileRequest request;
-    request.set_filename(filename);
-    if (normalFile) {
+    request.set_filename(context.name);
+    if (context.pagefile) {
         request.set_filetype(curve::mds::FileType::INODE_PAGEFILE);
-        request.set_filelength(size);
+        request.set_filelength(context.length);
+        request.set_stripeunit(context.stripeUnit);
+        request.set_stripecount(context.stripeCount);
+        request.set_poolset(context.poolset);
     } else {
         request.set_filetype(curve::mds::FileType::INODE_DIRECTORY);
     }
 
-    request.set_stripeunit(stripeUnit);
-    request.set_stripecount(stripeCount);
-    FillUserInfo(&request, userinfo);
+    FillUserInfo(&request, context.user);
 
-    LOG(INFO) << "CreateFile: filename = " << filename
-                << ", owner = " << userinfo.owner
-                << ", is normalfile: " << normalFile
-                << ", log id = " << cntl->log_id()
-                << ", stripeUnit = " << stripeUnit
-                << ", stripeCount = " << stripeCount;
+    if (context.pagefile) {
+        LOG(INFO) << "CreateFile, filename = `" << context.name << "`"
+                  << ", owner = " << context.user.owner
+                  << ", stripe unit = " << context.stripeUnit
+                  << ", stripe count = " << context.stripeCount
+                  << ", poolset = `" << context.poolset << "`"
+                  << ", log id = " << cntl->log_id();
+    } else {
+        LOG(INFO) << "CreateDirectory, dirname = `" << context.name << "`"
+                  << ", owner = " << context.user.owner
+                  << ", log id = " << cntl->log_id();
+    }
 
     curve::mds::CurveFSService_Stub stub(channel);
     stub.CreateFile(cntl, &request, response, NULL);
@@ -307,6 +310,15 @@ void MDSClientBase::GetClusterInfo(GetClusterInfoResponse* response,
 
     curve::mds::topology::TopologyService_Stub stub(channel);
     stub.GetClusterInfo(cntl, &request, response, nullptr);
+}
+
+void MDSClientBase::ListPoolset(ListPoolsetResponse* response,
+                                 brpc::Controller* cntl,
+                                 brpc::Channel* channel) {
+    ListPoolsetRequest request;
+
+    TopologyService_Stub stub(channel);
+    stub.ListPoolset(cntl, &request, response, nullptr);
 }
 
 void MDSClientBase::CreateCloneFile(const std::string& source,

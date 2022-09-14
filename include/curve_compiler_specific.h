@@ -26,20 +26,13 @@
 #define CURVE_CACHELINE_SIZE 64
 #define CURVE_CACHELINE_ALIGNMENT alignas(CURVE_CACHELINE_SIZE)
 
-#if defined(COMPILER_GCC)
-#if defined(__cplusplus)
-#define CURVE_LIKELY(expr) \
-    (__builtin_expect(static_cast<bool>(expr), true))
-#define CURVE_UNLIKELY(expr) \
-    (__builtin_expect(static_cast<bool>(expr), false))
-#else
+#if defined(__GNUC__) || defined(__clang__)
 #define CURVE_LIKELY(expr) (__builtin_expect(!!(expr), 1))
 #define CURVE_UNLIKELY(expr) (__builtin_expect(!!(expr), 0))
-#endif
 #else
 #define CURVE_LIKELY(expr) (expr)
 #define CURVE_UNLIKELY(expr) (expr)
-#endif  // defined(COMPILER_GCC)
+#endif  // defined(__GNUC__) || defined(__clang__)
 
 #ifdef UNIT_TEST
 #define CURVE_MOCK virtual
