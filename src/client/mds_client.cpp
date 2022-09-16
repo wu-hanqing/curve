@@ -245,8 +245,11 @@ int MDSClient::MDSRPCExcutor::ExcuteTask(int mdsindex,
                                          RPCFunc task) {
     const std::string& mdsaddr = metaServerOpt_.mdsAddrs[mdsindex];
 
+    // FIXME: how to distingush mds ip/port is ucp or not
     brpc::Channel channel;
-    int ret = channel.Init(mdsaddr.c_str(), nullptr);
+    brpc::ChannelOptions opts;
+    opts.use_ucp = true;
+    int ret = channel.Init(mdsaddr.c_str(), &opts);
     if (ret != 0) {
         LOG(WARNING) << "Init channel failed! addr = " << mdsaddr;
         // 返回EHOSTDOWN给上层调用者，促使其切换mds
