@@ -38,7 +38,7 @@ http_archive(
     name = "com_google_protobuf",
     sha256 = "cef7f1b5a7c5fba672bec2a319246e8feba471f04dcebfe362d55930ee7c1c30",
     strip_prefix = "protobuf-3.5.0",
-    urls = ["https://github.com/google/protobuf/archive/v3.5.0.zip"],
+    urls = ["https://curve-build.nos-eastchina1.126.net/protobuf-3.5.0.zip"],
 )
 
 bind(
@@ -50,7 +50,7 @@ bind(
 new_git_repository(
     name = "com_google_googletest",
     build_file = "bazel/gmock.BUILD",
-    remote = "https://github.com/google/googletest",
+    remote = "https://gitee.com/mirrors/googletest",
     tag = "release-1.8.0",
 )
 
@@ -79,7 +79,7 @@ http_archive(
     name = "com_github_gflags_gflags",
     strip_prefix = "gflags-2.2.2",
     urls = [
-        "https://mirror.bazel.build/github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+        "https://curve-build.nos-eastchina1.126.net/gflags-2.2.2.tar.gz",
         "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
     ],
 )
@@ -93,7 +93,7 @@ new_http_archive(
     name = "com_github_google_leveldb",
     build_file = "bazel/leveldb.BUILD",
     strip_prefix = "leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6",
-    url = "https://github.com/google/leveldb/archive/a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz",
+    url = "https://curve-build.nos-eastchina1.126.net/leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz",
 )
 
 bind(
@@ -135,7 +135,7 @@ bind(
 new_git_repository(
     name = "jsoncpp",
     build_file = "bazel/jsoncpp.BUILD",
-    remote = "https://github.com/open-source-parsers/jsoncpp.git",
+    remote = "https://gitee.com/mirrors/jsoncpp",
     tag = "1.8.4",
 )
 
@@ -153,7 +153,7 @@ new_local_repository(
 new_http_archive(
     name = "aws",
     urls = [
-        "https://github.com/aws/aws-sdk-cpp/archive/1.7.340.tar.gz",
+        "https://curve-build.nos-eastchina1.126.net/aws-sdk-cpp-1.7.340.tar.gz",
         "https://mirror.bazel.build/github.com/aws/aws-sdk-cpp/archive/1.7.340.tar.gz",
     ],
     sha256 = "2e82517045efb55409cff1408c12829d9e8aea22c1e2888529cb769b7473b0bf",
