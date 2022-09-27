@@ -211,6 +211,7 @@ TEST_F(TestTopology, test_init_success) {
     EXPECT_CALL(*storage_, StorageClusterInfo(_))
         .WillOnce(Return(true));
 
+    std::unordered_map<PoolsetIdType, Poolset> poolsetMap_;
     std::unordered_map<PoolIdType, LogicalPool> logicalPoolMap_;
     std::unordered_map<PoolIdType, PhysicalPool> physicalPoolMap_;
     std::unordered_map<ZoneIdType, Zone> zoneMap_;
@@ -231,6 +232,9 @@ TEST_F(TestTopology, test_init_success) {
     copySetMap_[std::pair<PoolIdType, CopySetIdType>(0x01, 0x51)] =
         CopySetInfo(0x01, 0x51);
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(DoAll(SetArgPointee<0>(poolsetMap_),
+                    Return(true)));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(DoAll(SetArgPointee<0>(logicalPoolMap_),
                     Return(true)));
@@ -250,6 +254,7 @@ TEST_F(TestTopology, test_init_success) {
         .WillOnce(DoAll(SetArgPointee<0>(copySetMap_),
                     Return(true)));
 
+    EXPECT_CALL(*idGenerator_, initPoolsetIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initLogicalPoolIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initPhysicalPoolIdGenerator(_));
     EXPECT_CALL(*idGenerator_, initZoneIdGenerator(_));
@@ -300,6 +305,8 @@ TEST_F(TestTopology, test_init_loadLogicalPoolFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(false));
 
@@ -316,6 +323,8 @@ TEST_F(TestTopology, test_init_LoadPhysicalPoolFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -336,6 +345,8 @@ TEST_F(TestTopology, test_init_LoadZoneFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -358,7 +369,8 @@ TEST_F(TestTopology, test_init_LoadServerFail) {
     EXPECT_CALL(*storage_, LoadClusterInfo(_))
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
-
+     EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -385,6 +397,8 @@ TEST_F(TestTopology, test_init_LoadChunkServerFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))
@@ -414,6 +428,8 @@ TEST_F(TestTopology, test_init_LoadCopysetFail) {
         .WillOnce(DoAll(SetArgPointee<0>(infos),
                 Return(true)));
 
+    EXPECT_CALL(*storage_, LoadPoolset(_, _))
+        .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadLogicalPool(_, _))
         .WillOnce(Return(true));
     EXPECT_CALL(*storage_, LoadPhysicalPool(_, _))

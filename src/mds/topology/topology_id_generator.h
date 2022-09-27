@@ -40,6 +40,7 @@ class TopologyIdGenerator {
     TopologyIdGenerator() {}
     virtual ~TopologyIdGenerator() {}
 
+    virtual void initPoolsetIdGenerator(PoolsetIdType idMax) = 0;
     virtual void initLogicalPoolIdGenerator(PoolIdType idMax) = 0;
     virtual void initPhysicalPoolIdGenerator(PoolIdType idMax) = 0;
     virtual void initZoneIdGenerator(ZoneIdType idMax) = 0;
@@ -63,6 +64,7 @@ class DefaultIdGenerator : public TopologyIdGenerator {
     DefaultIdGenerator() {}
     ~DefaultIdGenerator() {}
 
+    virtual void initPoolsetIdGenerator(PoolsetIdType idMax);
     virtual void initLogicalPoolIdGenerator(PoolIdType idMax);
     virtual void initPhysicalPoolIdGenerator(PoolIdType idMax);
     virtual void initZoneIdGenerator(ZoneIdType idMax);

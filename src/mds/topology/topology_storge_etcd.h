@@ -47,6 +47,9 @@ class TopologyStorageEtcd : public TopologyStorage {
         std::shared_ptr<TopologyStorageCodec> codec)
     : client_(client),
       codec_(codec) {}
+    bool LoadPoolset(
+        std::unordered_map<PoolsetIdType, Poolset> *poolsetMap,
+        PoolsetIdType *maxPoolsetId) override;
     bool LoadLogicalPool(
         std::unordered_map<PoolIdType, LogicalPool> *logicalPoolMap,
         PoolIdType *maxLogicalPoolId) override;

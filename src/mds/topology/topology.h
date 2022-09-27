@@ -84,7 +84,6 @@ class Topology {
 
     virtual int RemoveLogicalPool(PoolIdType id) = 0;
     virtual int RemovePhysicalPool(PoolIdType id) = 0;
-    virtual int RemovePhysicalPoolNotInPoolset(PoolIdType id) = 0;
     virtual int RemovePoolset(PoolsetIdType id) = 0;
     virtual int RemoveZone(ZoneIdType id) = 0;
     virtual int RemoveServer(ServerIdType id) = 0;
@@ -92,6 +91,8 @@ class Topology {
     virtual int RemoveCopySet(CopySetKey key) = 0;
 
     virtual int UpdateLogicalPool(const LogicalPool &data) = 0;
+    virtual int UpgradePhysicalPool(PoolIdType poolId,
+                                     PoolsetIdType pstId) = 0;
 
     /**
      * @brief update logicalPoolId allocate status
@@ -216,7 +217,8 @@ class Topology {
         const std::string &hostIp,
         uint32_t port) const = 0;
 
-    virtual bool GetPoolset(PoolsetIdType poolsetId, Poolset *out) const = 0;
+    virtual bool GetPoolset(PoolsetIdType poolsetId,
+        Poolset *out) const = 0;
 
     virtual bool GetLogicalPool(PoolIdType poolId,
                                 LogicalPool *out) const = 0;
@@ -412,7 +414,6 @@ class TopologyImpl : public Topology {
     int AddCopySet(const CopySetInfo &data) override;
 
     int RemoveLogicalPool(PoolIdType id) override;
-    int RemovePhysicalPoolNotInPoolset(PoolIdType id) override;
     int RemovePhysicalPool(PoolIdType id) override;
     int RemovePoolset(PoolsetIdType id) override;
     int RemoveZone(ZoneIdType id) override;
@@ -423,6 +424,8 @@ class TopologyImpl : public Topology {
     int UpdateLogicalPool(const LogicalPool &data) override;
     int UpdateLogicalPoolAllocateStatus(const AllocateStatus &status,
                                         PoolIdType id) override;
+    int UpgradePhysicalPool(PoolIdType poolId,
+                             PoolsetIdType pstId) override;
 
     int UpdateLogicalPoolScanState(PoolIdType lpid,
                                    bool scanEnable) override;

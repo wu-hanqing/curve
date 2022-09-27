@@ -176,11 +176,11 @@ class MDSClient {
      *  @return 成功返回0，失败返回-1
      */
     virtual int CreateFile(const std::string& fileName,
+                           const std::string& pstName,
                            uint64_t length = 0,
                            bool normalFile = true,
                            uint64_t stripeUnit = 0,
                            uint64_t stripeCount = 0);
-
     /**
      *  @brief List all volumes on copysets
      *  @param copysets

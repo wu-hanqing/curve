@@ -263,6 +263,7 @@ TEST_F(TestTopologyChunkAllocator,
 
     bool ret =
         testObj_->AllocateChunkRandomInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             2,
             1024,
             &infos);
@@ -281,6 +282,7 @@ TEST_F(TestTopologyChunkAllocator,
     std::vector<CopysetIdInfo> infos;
     bool ret =
         testObj_->AllocateChunkRandomInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             1,
             1024,
             &infos);
@@ -296,6 +298,7 @@ TEST_F(TestTopologyChunkAllocator,
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -317,6 +320,7 @@ TEST_F(TestTopologyChunkAllocator,
 
     bool ret =
         testObj_->AllocateChunkRandomInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             2,
             1024,
             &infos);
@@ -329,6 +333,7 @@ TEST_F(TestTopologyChunkAllocator,
 
         ret =
     testObj_->AllocateChunkRandomInSingleLogicalPool(INODE_PAGEFILE,
+        "testPoolset",
         2,
         1024,
         &infos);
@@ -343,6 +348,7 @@ TEST_F(TestTopologyChunkAllocator,
 
         ret =
     testObj_->AllocateChunkRandomInSingleLogicalPool(INODE_PAGEFILE,
+        "testPoolset",
         2,
         1024,
         &infos);
@@ -358,6 +364,7 @@ TEST_F(TestTopologyChunkAllocator,
     PoolIdType physicalPoolId = 0x11;
     CopySetIdType copysetId = 0x51;
 
+    PrepareAddPoolset();
     PrepareAddPhysicalPool(physicalPoolId);
     PrepareAddZone(0x21, "zone1", physicalPoolId);
     PrepareAddZone(0x22, "zone2", physicalPoolId);
@@ -383,7 +390,8 @@ TEST_F(TestTopologyChunkAllocator,
     std::map<PoolIdType, double> enoughsize;
     std::vector<PoolIdType> pools ={0x01};
     for (int i = 0; i < 10; i++) {
-        testObj_->GetRemainingSpaceInLogicalPool(pools, &enoughsize);
+        testObj_->GetRemainingSpaceInLogicalPool(pools,
+                                                 &enoughsize, "testPoolset");
         ASSERT_EQ(enoughsize[logicalPoolId], 1109);
     }
 }
@@ -424,6 +432,7 @@ TEST_F(TestTopologyChunkAllocator,
 
     bool ret =
         testObj_->AllocateChunkRoundRobinInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             3,
             1024,
             &infos);
@@ -439,6 +448,7 @@ TEST_F(TestTopologyChunkAllocator,
     std::vector<CopysetIdInfo> infos2;
     ret =
         testObj_->AllocateChunkRoundRobinInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             3,
             1024,
             &infos2);
@@ -490,6 +500,7 @@ TEST_F(TestTopologyChunkAllocator,
     std::vector<CopysetIdInfo> infos;
     bool ret =
         testObj_->AllocateChunkRoundRobinInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             1,
             1024,
             &infos);
@@ -508,6 +519,7 @@ TEST_F(TestTopologyChunkAllocator,
     PrepareAddLogicalPool(logicalPoolId);
     bool ret =
         testObj_->AllocateChunkRoundRobinInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             1,
             1024,
             &infos);
@@ -555,6 +567,7 @@ TEST_F(TestTopologyChunkAllocator,
 
     bool ret =
         testObj_->AllocateChunkRoundRobinInSingleLogicalPool(INODE_PAGEFILE,
+            "testPoolset",
             3,
             1024,
             &infos);

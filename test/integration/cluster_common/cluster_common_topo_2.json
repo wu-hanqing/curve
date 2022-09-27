@@ -33,7 +33,7 @@
             "name": "server1",
             "physicalpool": "pool1",
             "zone": "zone1",
-            "poolsetname": "ssdPoolset1"
+            "poolsetName": "ssdPoolset1"
         },
         {
             "externalip": "127.0.0.1",
@@ -43,7 +43,7 @@
             "name": "server2",
             "physicalpool": "pool1",
             "zone": "zone2",
-            "poolsetname": "ssdPoolset1"
+            "poolsetName": "ssdPoolset1"
         },
         {
             "externalip": "127.0.0.1",
@@ -53,7 +53,7 @@
             "name": "server3",
             "physicalpool": "pool1",
             "zone": "zone3",
-            "poolsetname": "ssdPoolset1"
+            "poolsetName": "ssdPoolset1"
         },
         {
             "externalip": "127.0.0.1",
@@ -63,7 +63,7 @@
             "name": "server4",
             "physicalpool": "pool1",
             "zone": "zone4",
-            "poolsetname": "ssdPoolset1"
+            "poolsetName": "ssdPoolset1"
         }
     ]
 }

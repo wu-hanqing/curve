@@ -56,7 +56,8 @@ class MockIdGenerator : public TopologyIdGenerator {
  public:
     MockIdGenerator() {}
     ~MockIdGenerator() {}
-
+    MOCK_METHOD1(initPoolsetIdGenerator, void(PoolsetIdType
+                  idMax));
     MOCK_METHOD1(initLogicalPoolIdGenerator, void(PoolIdType
                  idMax));
     MOCK_METHOD1(initPhysicalPoolIdGenerator, void(PoolIdType
@@ -93,6 +94,9 @@ class MockStorage : public TopologyStorage {
     MockStorage() {}
     ~MockStorage() {}
 
+    MOCK_METHOD2(LoadPoolset,
+        bool(std::unordered_map<PoolsetIdType, Poolset>
+            *poolsetMap, PoolsetIdType * maxPoolsetId));
     MOCK_METHOD2(LoadLogicalPool,
         bool(std::unordered_map<PoolIdType, LogicalPool>
             *logicalPoolMap, PoolIdType * maxLogicalPoolId));

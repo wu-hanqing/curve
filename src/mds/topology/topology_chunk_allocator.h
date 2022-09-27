@@ -26,6 +26,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <string>
 #include <map>
 
 #include "src/mds/topology/topology.h"
@@ -89,17 +90,21 @@ class TopologyChunkAllocator {
     virtual ~TopologyChunkAllocator() {}
     virtual bool AllocateChunkRandomInSingleLogicalPool(
         ::curve::mds::FileType fileType,
+        const std::string& pstName,
         uint32_t chunkNumer,
         ChunkSizeType chunkSize,
         std::vector<CopysetIdInfo> *infos) = 0;
     virtual bool AllocateChunkRoundRobinInSingleLogicalPool(
         ::curve::mds::FileType fileType,
+        const std::string &pstName,
         uint32_t chunkNumer,
         ChunkSizeType chunkSize,
         std::vector<CopysetIdInfo> *infos) = 0;
     virtual void GetRemainingSpaceInLogicalPool(
         const std::vector<PoolIdType>& logicalPools,
-        std::map<PoolIdType, double>* remianingSpace) = 0;
+        std::map<PoolIdType, double>* remianingSpace,
+        const std::string& pstName) = 0;
+
     virtual void UpdateChunkFilePoolAllocConfig(
         bool useChunkFilepool_, bool useChunkFilePoolAsWalPool_,
         uint32_t useChunkFilePoolAsWalPoolReserve_) = 0;
@@ -137,6 +142,7 @@ class TopologyChunkAllocatorImpl : public TopologyChunkAllocator {
      */
     bool AllocateChunkRandomInSingleLogicalPool(
         curve::mds::FileType fileType,
+        const std::string& pstName,
         uint32_t chunkNumber,
         ChunkSizeType chunkSize,
         std::vector<CopysetIdInfo> *infos) override;
@@ -154,12 +160,15 @@ class TopologyChunkAllocatorImpl : public TopologyChunkAllocator {
      */
     bool AllocateChunkRoundRobinInSingleLogicalPool(
         curve::mds::FileType fileType,
+        const std::string &pstName,
         uint32_t chunkNumber,
         ChunkSizeType chunkSize,
         std::vector<CopysetIdInfo> *infos) override;
     void GetRemainingSpaceInLogicalPool(
         const std::vector<PoolIdType>& logicalPools,
-        std::map<PoolIdType, double>* remianingSpace) override;
+        std::map<PoolIdType, double>* remianingSpace,
+        const std::string& pstName) override;
+
     void UpdateChunkFilePoolAllocConfig(bool useChunkFilepool_,
             bool useChunkFilePoolAsWalPool_,
             uint32_t useChunkFilePoolAsWalPoolReserve_) override {
@@ -179,6 +188,7 @@ class TopologyChunkAllocatorImpl : public TopologyChunkAllocator {
      * @retval false if failed
      */
     bool ChooseSingleLogicalPool(curve::mds::FileType fileType,
+        const std::string& pstName,
         PoolIdType *poolOut);
 
  private:

@@ -138,7 +138,24 @@ int Create(const char* filename,
  */
 int Create2(const char* filename,
            const C_UserInfo_t* userinfo,
-           size_t size, uint64_t stripeUnit, uint64_t stripeCount);
+           size_t size, uint64_t stripeUnit,
+           uint64_t stripeCount);
+
+/**
+ * create file with specified poolset
+ * @param: filename  file name
+ * @param: userinfo  user info
+ * @param: size      file size
+ * @param: stripeUnit block in stripe size
+ * @param: stripeCount stripe count in one stripe
+ * @param: poolsetName the name of specified poolset
+ *
+ * @return: success return 0, fail return less than 0
+ */
+int Create3(const char* filename,
+           const C_UserInfo_t* userinfo,
+           size_t size, uint64_t stripeUnit,
+           uint64_t stripeCount, const char* poolsetName);
 
 /**
  * 同步模式读

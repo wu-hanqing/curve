@@ -79,6 +79,7 @@ class CurveFSTest: public ::testing::Test {
         curveFSOptions_.maxFileLength = 20 * kTB;
         curveFSOptions_.authOptions = authOptions_;
         curveFSOptions_.fileRecordOptions = fileRecordOptions_;
+        curveFSOptions_.defaultPoolset = "ssdPoolset1";
 
         curvefs_ =  &kCurveFS;
 
@@ -135,27 +136,33 @@ TEST_F(CurveFSTest, testCreateFile1) {
     spacePools.insert(std::pair<PoolIdType, double>(1,
             kMaxFileLength - kMiniFileLength));
     EXPECT_CALL(*mockChunkAllocator_,
-        GetRemainingSpaceInLogicalPool(_, _))
+        GetRemainingSpaceInLogicalPool(_, _, _))
         .Times(AtLeast(1))
         .WillRepeatedly(DoAll(SetArgPointee<1>(spacePools), Return()));
-    ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1", FileType::INODE_PAGEFILE,
+    EXPECT_CALL(*topology_, FindPoolset(_))
+        .WillOnce(Return(1));
+    ASSERT_EQ(curvefs_->CreateFile("/file1", "",
+                    "owner1", FileType::INODE_PAGEFILE,
                     kMiniFileLength - 1, 0, 0),
                     StatusCode::kFileLengthNotSupported);
 
-    ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1", FileType::INODE_PAGEFILE,
+    ASSERT_EQ(curvefs_->CreateFile("/file1", "",
+                    "owner1", FileType::INODE_PAGEFILE,
                     kMaxFileLength + 1, 0, 0),
                     StatusCode::kFileLengthNotSupported);
 
-    ASSERT_EQ(curvefs_->CreateFile("/flie1", "owner1", FileType::INODE_PAGEFILE,
+    ASSERT_EQ(curvefs_->CreateFile("/flie1", "",
+                                   "owner1", FileType::INODE_PAGEFILE,
                                    kMiniFileLength + 1, 0, 0),
               StatusCode::kFileLengthNotSupported);
 
-    ASSERT_EQ(curvefs_->CreateFile("/flie1", "owner1", FileType::INODE_PAGEFILE,
-                kMaxFileLength - kMiniFileLength + DefaultSegmentSize, 0, 0),
-              StatusCode::kFileLengthNotSupported);
+    ASSERT_EQ(curvefs_->CreateFile("/flie1", "", "owner1",
+            FileType::INODE_PAGEFILE,
+            kMaxFileLength - kMiniFileLength + DefaultSegmentSize,
+            0, 0), StatusCode::kFileLengthNotSupported);
 
-    ASSERT_EQ(curvefs_->CreateFile("/", "", FileType::INODE_DIRECTORY, 0, 0, 0),
-              StatusCode::kFileExists);
+    ASSERT_EQ(curvefs_->CreateFile("/", "", "", FileType::INODE_DIRECTORY,
+             0, 0, 0), StatusCode::kFileExists);
 
     {
         // test file exist
@@ -163,7 +170,7 @@ TEST_F(CurveFSTest, testCreateFile1) {
         .Times(AtLeast(1))
         .WillOnce(Return(StoreStatus::OK));
 
-        auto statusCode = curvefs_->CreateFile("/file1", "owner1",
+        auto statusCode = curvefs_->CreateFile("/file1", "", "owner1",
                     FileType::INODE_PAGEFILE, kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kFileExists);
     }
@@ -174,7 +181,7 @@ TEST_F(CurveFSTest, testCreateFile1) {
         .Times(AtLeast(1))
         .WillOnce(Return(StoreStatus::InternalError));
 
-        auto statusCode = curvefs_->CreateFile("/file1", "owner1",
+        auto statusCode = curvefs_->CreateFile("/file1", "", "owner1",
                     FileType::INODE_PAGEFILE, kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kStorageError);
     }
@@ -193,7 +200,7 @@ TEST_F(CurveFSTest, testCreateFile1) {
         .Times(1)
         .WillOnce(Return(true));
 
-        auto statusCode = curvefs_->CreateFile("/file1", "owner1",
+        auto statusCode = curvefs_->CreateFile("/file1", "", "owner1",
                     FileType::INODE_PAGEFILE, kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kStorageError);
     }
@@ -213,7 +220,7 @@ TEST_F(CurveFSTest, testCreateFile1) {
         .WillOnce(Return(true));
 
 
-        auto statusCode = curvefs_->CreateFile("/file1", "owner1",
+        auto statusCode = curvefs_->CreateFile("/file1", "", "owner1",
             FileType::INODE_PAGEFILE, kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kOK);
     }
@@ -228,7 +235,7 @@ TEST_F(CurveFSTest, testCreateFile1) {
         .Times(1)
         .WillOnce(Return(false));
 
-        auto statusCode = curvefs_->CreateFile("/file1", "owner1",
+        auto statusCode = curvefs_->CreateFile("/file1", "", "owner1",
                 FileType::INODE_PAGEFILE, kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kStorageError);
     }
@@ -250,7 +257,8 @@ TEST_F(CurveFSTest, testCreateFile1) {
             .WillOnce(Return(true));
 
         auto statusCode = curvefs_->CreateFile(
-            "/dir1", "owner1", FileType::INODE_DIRECTORY, 0, 0, 0);
+            "/dir1", "ssdPoolset1", "owner1",
+            FileType::INODE_DIRECTORY, 0, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kOK);
         ASSERT_FALSE(fileInfo.has_throttleparams());
     }
@@ -272,8 +280,9 @@ TEST_F(CurveFSTest, testCreateFile1) {
             .WillOnce(Return(true));
 
         auto statusCode =
-            curvefs_->CreateFile("/file1", "owner1", FileType::INODE_PAGEFILE,
-                                 kMiniFileLength, 0, 0);
+            curvefs_->CreateFile("/file1", "ssdPoolset1",
+                                "owner1", FileType::INODE_PAGEFILE,
+                                kMiniFileLength, 0, 0);
         ASSERT_EQ(statusCode, StatusCode::kOK);
         ASSERT_TRUE(fileInfo.has_throttleparams());
     }
@@ -286,7 +295,7 @@ TEST_F(CurveFSTest, testCreateStripeFile) {
         spacePools.insert(std::pair<PoolIdType, double>(1, kMaxFileLength));
         spacePools.insert(std::pair<PoolIdType, double>(2, kMaxFileLength));
         EXPECT_CALL(*mockChunkAllocator_,
-            GetRemainingSpaceInLogicalPool(_, _))
+            GetRemainingSpaceInLogicalPool(_, _, _))
          .Times(AtLeast(1))
          .WillRepeatedly(DoAll(SetArgPointee<1>(spacePools), Return()));
         EXPECT_CALL(*storage_, GetFile(_, _, _))
@@ -301,31 +310,31 @@ TEST_F(CurveFSTest, testCreateStripeFile) {
         .Times(1)
         .WillOnce(Return(true));
 
-        ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1",
+        ASSERT_EQ(curvefs_->CreateFile("/file1", "", "owner1",
                   FileType::INODE_PAGEFILE, kMiniFileLength,
                   1 * 1024 * 1024, 4), StatusCode::kOK);
     }
 
     {
         // test stripeStripe and stripeCount is not all zero
-        ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1",
+        ASSERT_EQ(curvefs_->CreateFile("/file1", "", "owner1",
                    FileType::INODE_PAGEFILE, kMiniFileLength, 0, 1),
                     StatusCode::kParaError);
-        ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1",
-                    FileType::INODE_PAGEFILE, kMiniFileLength, 1024*1024ul, 0),
-                                   StatusCode::kParaError);
+        ASSERT_EQ(curvefs_->CreateFile("/file1", "", "owner1",
+                    FileType::INODE_PAGEFILE, kMiniFileLength, 1024*1024ul,
+                    0), StatusCode::kParaError);
     }
 
     {
         // test stripeUnit more then chunksize
-        ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1",
-        FileType::INODE_PAGEFILE, kMiniFileLength, 16*1024*1024ul + 1, 0),
-                    StatusCode::kParaError);
+        ASSERT_EQ(curvefs_->CreateFile("/file1", "", "owner1",
+        FileType::INODE_PAGEFILE, kMiniFileLength, 16*1024*1024ul + 1,
+        0), StatusCode::kParaError);
     }
 
     {
         // test stripeUnit is not divisible by chunksize
-        ASSERT_EQ(curvefs_->CreateFile("/file1", "owner1",
+        ASSERT_EQ(curvefs_->CreateFile("/file1", "", "owner1",
             FileType::INODE_PAGEFILE,  kMiniFileLength,
             4*1024*1024ul + 1, 0), StatusCode::kParaError);
     }
@@ -2230,7 +2239,8 @@ TEST_F(CurveFSTest, testGetOrAllocateSegment) {
         .WillOnce(Return(StoreStatus::KeyNotExist));
 
 
-        EXPECT_CALL(*mockChunkAllocator_, AllocateChunkSegment(_, _, _, _, _))
+        EXPECT_CALL(*mockChunkAllocator_,
+                   AllocateChunkSegment(_, _, _, _, _, _))
         .Times(1)
         .WillOnce(Return(true));
 
@@ -2334,7 +2344,8 @@ TEST_F(CurveFSTest, testGetOrAllocateSegment) {
         .WillOnce(Return(StoreStatus::KeyNotExist));
 
 
-        EXPECT_CALL(*mockChunkAllocator_, AllocateChunkSegment(_, _, _, _, _))
+        EXPECT_CALL(*mockChunkAllocator_,
+                   AllocateChunkSegment(_, _, _, _, _, _))
         .Times(1)
         .WillOnce(Return(false));
 
@@ -2366,7 +2377,8 @@ TEST_F(CurveFSTest, testGetOrAllocateSegment) {
         .WillOnce(Return(StoreStatus::KeyNotExist));
 
 
-        EXPECT_CALL(*mockChunkAllocator_, AllocateChunkSegment(_, _, _, _, _))
+        EXPECT_CALL(*mockChunkAllocator_,
+            AllocateChunkSegment(_, _, _, _, _, _))
         .Times(1)
         .WillOnce(Return(true));
 

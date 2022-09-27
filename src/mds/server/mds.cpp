@@ -510,6 +510,8 @@ void MDS::InitCurveFSOptions(CurveFSOption *curveFSOptions) {
         "mds.curvefs.minFileLength", &curveFSOptions->minFileLength);
     conf_->GetValueFatalIfFail(
         "mds.curvefs.maxFileLength", &curveFSOptions->maxFileLength);
+    conf_->GetValueFatalIfFail(
+        "mds.curvefs.defaultPoolset", &curveFSOptions->defaultPoolset);
     FileRecordOptions fileRecordOptions;
     InitFileRecordOptions(&curveFSOptions->fileRecordOptions);
 

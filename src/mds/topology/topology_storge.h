@@ -42,6 +42,9 @@ class TopologyStorage {
     TopologyStorage() {}
     virtual ~TopologyStorage() {}
 
+    virtual bool LoadPoolset(
+        std::unordered_map<PoolsetIdType, Poolset> *poolsetMap,
+        PoolsetIdType *maxPoolsetId) = 0;
     virtual bool LoadLogicalPool(
         std::unordered_map<PoolIdType, LogicalPool> *logicalPoolMap,
         PoolIdType *maxLogicalPoolId) = 0;

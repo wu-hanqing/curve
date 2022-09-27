@@ -29,6 +29,7 @@ DEFINE_string(expireTime, "7d", "Time for file in recyclebin exceed expire time 
 DEFINE_bool(forcedelete, false, "force delete file or not");
 DEFINE_uint64(fileLength, 20, "file length (GB)");
 DEFINE_uint64(newSize, 30, "the new size of expanded volume(GB)");
+DEFINE_string(poolset, "", "specify the poolset name");
 DEFINE_bool(isTest, false, "is unit test or not");
 DEFINE_uint64(offset, 0, "offset to query chunk location");
 DEFINE_uint64(rpc_timeout, 3000, "millisecond for rpc timeout");
@@ -130,7 +131,8 @@ int NameSpaceTool::RunCommand(const std::string &cmd) {
         }
         bool normalFile = FLAGS_dirName.empty();
         std::string name = normalFile ? FLAGS_fileName : FLAGS_dirName;
-        return core_->CreateFile(name, FLAGS_fileLength * mds::kGB,
+        return core_->CreateFile(name, FLAGS_poolset,
+                                 FLAGS_fileLength * mds::kGB,
                                  normalFile, FLAGS_stripeUnit,
                                  FLAGS_stripeCount);
     } else if (cmd == kExtendCmd) {
@@ -159,7 +161,7 @@ void NameSpaceTool::PrintHelp(const std::string &cmd) {
         std::cout << "If -fileName is specified, delete the files in recyclebin that the original directory is fileName" << std::endl;  // NOLINT
         std::cout << "expireTime: s=second, m=minute, h=hour, d=day, M=month, y=year" << std::endl;  // NOLINT
     } else if (cmd == kCreateCmd) {
-        std::cout << "curve_ops_tool " << cmd << " -fileName=/test -userName=test -password=123 -fileLength=20 [-stripeUnit=32768] [-stripeCount=32]  [-mdsAddr=127.0.0.1:6666] [-confPath=/etc/curve/tools.conf]" << std::endl;  // NOLINT
+        std::cout << "curve_ops_tool " << cmd << " -fileName=/test -userName=test -password=123 -fileLength=20 [--poolset=ssdPoolset1] [-stripeUnit=32768] [-stripeCount=32]  [-mdsAddr=127.0.0.1:6666] [-confPath=/etc/curve/tools.conf]" << std::endl;  // NOLINT
         std::cout << "curve_ops_tool " << cmd << " -dirName=/dir -userName=test -password=123 [-mdsAddr=127.0.0.1:6666] [-confPath=/etc/curve/tools.conf]" << std::endl;  // NOLINT
         std::cout << "The first example can create a volume and the second create a directory." << std::endl;  // NOLINT
     } else if (cmd == kExtendCmd) {

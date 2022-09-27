@@ -110,7 +110,9 @@ class NameSpaceToolCore {
      *  @param stripeCount the amount of stripes
      *  @return 成功返回0，失败返回-1
      */
-    virtual int CreateFile(const std::string& fileName, uint64_t length,
+    virtual int CreateFile(const std::string& fileName,
+                           const std::string& pstName,
+                           uint64_t length,
                            bool normalFile = true, uint64_t stripeUnit = 0,
                            uint64_t stripeCount = 0);
 

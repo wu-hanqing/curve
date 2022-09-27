@@ -256,7 +256,7 @@ class CSCloneRecoverTest : public ::testing::Test {
             server["name"] = std::string("server") + std::to_string(i);
             server["physicalpool"] = PHYSICAL_POOL_NAME;
             server["zone"] = std::string("zone") + std::to_string(i);
-            server["poolsetname"] = std::string("ssdPoolset1");
+            server["poolsetName"] = std::string("ssdPoolset1");
             servers.append(server);
         }
         topo["servers"] = servers;

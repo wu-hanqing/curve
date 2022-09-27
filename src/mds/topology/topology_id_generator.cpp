@@ -24,6 +24,9 @@
 namespace curve {
 namespace mds {
 namespace topology {
+void DefaultIdGenerator::initPoolsetIdGenerator(PoolsetIdType idMax) {
+  poolsetIdGentor_.init(idMax);
+}
 void DefaultIdGenerator::initLogicalPoolIdGenerator(PoolIdType idMax) {
   logicPoolIdGentor_.init(idMax);
 }

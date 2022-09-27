@@ -96,7 +96,6 @@ class MockTopology : public Topology {
     MOCK_METHOD1(RemovePoolset, int(PoolsetIdType id));
     MOCK_METHOD1(RemoveLogicalPool, int(PoolIdType id));
     MOCK_METHOD1(RemovePhysicalPool, int(PoolIdType id));
-    MOCK_METHOD1(RemovePhysicalPoolNotInPoolset, int(PoolIdType id));
     MOCK_METHOD1(RemoveZone, int(ZoneIdType id));
     MOCK_METHOD1(RemoveServer, int(ServerIdType id));
     MOCK_METHOD1(RemoveChunkServer, int(ChunkServerIdType id));
@@ -113,6 +112,8 @@ class MockTopology : public Topology {
                      bool scanEnable));
 
     MOCK_METHOD1(UpdatePhysicalPool, int(const PhysicalPool &data));
+    MOCK_METHOD2(UpgradePhysicalPool, int(PoolIdType poolId,
+                  PoolsetIdType pstId));
     MOCK_METHOD1(UpdateZone, int(const Zone &data));
     MOCK_METHOD1(UpdateServer, int(const Server &data));
 

@@ -754,18 +754,21 @@ void TopologyServiceManager::ListPoolZone(const ListPoolZoneRequest* request,
 void TopologyServiceManager::CreatePoolset(
     const PoolsetRequest *request,
     PoolsetResponse *response) {
-    if ((request->has_poolsetname()) && (request->has_type()) &&
-        (request->has_desc())) {
-        PoolIdType pid = topology_->AllocatePoolsetId();
+    if ((request->has_poolsetname()) && (request->has_type())) {
+        PoolsetIdType pid = topology_->AllocatePoolsetId();
         if (pid ==
             static_cast<PoolsetIdType>(UNINTIALIZE_ID)) {
             response->set_statuscode(kTopoErrCodeAllocateIdFail);
             return;
         }
+        std::string desc = "";
+        if (request->has_desc()) {
+            desc = request->desc();
+        }
         Poolset poolset(pid,
                         request->poolsetname(),
                         request->type(),
-                        request->desc());
+                        desc);
 
         int errcode = topology_->AddPoolset(poolset);
         if (kTopoErrCodeSuccess == errcode) {
@@ -774,7 +777,7 @@ void TopologyServiceManager::CreatePoolset(
             info->set_poolsetid(pid);
             info->set_poolsetname(request->poolsetname());
             info->set_type(request->type());
-            info->set_desc(request->desc());
+            info->set_desc(desc);
             info->set_poolsnum(poolset.GetPoolsNum());
             response->set_allocated_poolsetinfo(info);
         } else {
@@ -851,36 +854,27 @@ void TopologyServiceManager::UpgradePhysicalPool(
     const UpgradePhysicalPoolRequest *request,
     UpgradePhysicalPoolResponse *response) {
      if ((request->has_physicalpoolname()) &&
-            (request->has_poolsetname())) {
-            PhysicalPool pPool;
-            if (!topology_->GetPhysicalPool(
-                request->physicalpoolname(), &pPool)) {
-                response->set_statuscode(kTopoErrCodePhysicalPoolNotFound);
-                return;
-            }
-            Poolset poolset;
-            if (!topology_->GetPoolset(request->poolsetname(), &poolset)) {
-                response->set_statuscode(kTopoErrCodePoolsetNotFound);
-                return;
-            }
-        PhysicalPool pool(pPool.GetId(), pPool.GetName(),
-                        poolset.GetId(), pPool.GetDesc());
-
-        int errcode = topology_->RemovePhysicalPoolNotInPoolset(pPool.GetId());
-
-        errcode = topology_->AddPhysicalPool(pool);
-        if (kTopoErrCodeSuccess == errcode) {
-            response->set_statuscode(errcode);
-            UpgradePhysicalPoolInfo *info = new UpgradePhysicalPoolInfo();
-            info->set_physicalpoolid(pool.GetId());
-            info->set_physicalpoolname(pool.GetName());
-            info->set_desc(pool.GetDesc());
-            info->set_poolsetid(poolset.GetId());
-            info->set_poolsetname(poolset.GetName());
-            response->set_allocated_upgradephysicalpoolinfo(info);
-        } else {
-            response->set_statuscode(errcode);
+        (request->has_poolsetname())) {
+        PhysicalPool pool;
+        if (!topology_->GetPhysicalPool(
+            request->physicalpoolname(), &pool)) {
+            response->set_statuscode(kTopoErrCodePhysicalPoolNotFound);
+            return;
         }
+        Poolset poolset;
+        if (!topology_->GetPoolset(request->poolsetname(), &poolset)) {
+            response->set_statuscode(kTopoErrCodePoolsetNotFound);
+            return;
+        }
+        topology_->UpgradePhysicalPool(pool.GetId(), poolset.GetId());
+        response->set_statuscode(kTopoErrCodeSuccess);
+        UpgradePhysicalPoolInfo *info = new UpgradePhysicalPoolInfo();
+        info->set_physicalpoolid(pool.GetId());
+        info->set_physicalpoolname(pool.GetName());
+        info->set_desc(pool.GetDesc());
+        info->set_poolsetid(poolset.GetId());
+        info->set_poolsetname(poolset.GetName());
+        response->set_allocated_upgradephysicalpoolinfo(info);
     } else {
         response->set_statuscode(kTopoErrCodeInvalidParam);
     }
@@ -1005,8 +999,8 @@ void TopologyServiceManager::ListPhysicalPool(
             PhysicalPoolInfo *info = response->add_physicalpoolinfos();
             info->set_physicalpoolid(pool.GetId());
             info->set_physicalpoolname(pool.GetName());
-            info->set_poolsetid(pool.GetPoolsetId());
             if (pool.GetPoolsetId() != UNINTIALIZE_ID) {
+                info->set_poolsetid(pool.GetPoolsetId());
                 Poolset poolset;
                 topology_->GetPoolset(pool.GetPoolsetId(), &poolset);
                 info->set_poolsetname(poolset.GetName());

@@ -41,6 +41,7 @@ namespace curve {
 namespace client {
 
 using curve::common::BthreadRWLock;
+using PoolsetType = ::curve::mds::topology::PoolsetType;
 
 class FileClient {
  public:
@@ -104,7 +105,7 @@ class FileClient {
      * @param: userinfo user info
      * @param: size file size
      * @param: stripeUnit block in stripe size
-     * @param  stripeCount stripe count in one stripe
+     * @param: stripeCount stripe count in one stripe
      * @return: success return 0,  fail return less than 0
      *
      */
@@ -112,6 +113,23 @@ class FileClient {
                         const UserInfo_t& userinfo,
                         size_t size, uint64_t stripeUnit,
                         uint64_t stripeCount);
+
+   /**
+     * create file with stripe
+     * @param: filename file name
+     * @param: userinfo user info
+     * @param: size file size
+     * @param: stripeUnit block in stripe size
+     * @param: stripeCount stripe count in one stripe
+     * @param: poolsetName the name of specified poolset
+     * @return: success return 0,  fail return less than 0
+     *
+     */
+    virtual int Create3(const std::string& filename,
+                        const UserInfo_t& userinfo,
+                        size_t size, uint64_t stripeUnit,
+                        uint64_t stripeCount,
+                        const std::string& poolsetName);
 
     /**
      * 同步模式读

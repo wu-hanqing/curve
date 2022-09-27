@@ -319,7 +319,7 @@ int FileClient::Create(const std::string& filename,
     const UserInfo_t& userinfo, size_t size) {
     LIBCURVE_ERROR ret;
     if (mdsClient_ != nullptr) {
-        ret = mdsClient_->CreateFile(filename, userinfo, size);
+        ret = mdsClient_->CreateFile(filename, "", userinfo, size);
         LOG_IF(ERROR, ret != LIBCURVE_ERROR::OK)
             << "Create file failed, filename: " << filename << ", ret: " << ret;
     } else {
@@ -334,8 +334,25 @@ int FileClient::Create2(const std::string& filename,
     uint64_t stripeUnit, uint64_t stripeCount) {
     LIBCURVE_ERROR ret;
     if (mdsClient_ != nullptr) {
-        ret = mdsClient_->CreateFile(filename, userinfo, size, true,
-                                     stripeUnit, stripeCount);
+        ret = mdsClient_->CreateFile(filename, "", userinfo,
+                                     size, true, stripeUnit, stripeCount);
+        LOG_IF(ERROR, ret != LIBCURVE_ERROR::OK)
+            << "Create file failed, filename: " << filename << ", ret: " << ret;
+    } else {
+        LOG(ERROR) << "global mds client not inited!";
+        return -LIBCURVE_ERROR::FAILED;
+    }
+    return -ret;
+}
+
+int FileClient::Create3(const std::string& filename,
+    const UserInfo_t& userinfo, size_t size,
+    uint64_t stripeUnit, uint64_t stripeCount,
+    const std::string& poolsetName) {
+    LIBCURVE_ERROR ret;
+    if (mdsClient_ != nullptr) {
+        ret = mdsClient_->CreateFile(filename, poolsetName, userinfo,
+                                     size, true, stripeUnit, stripeCount);
         LOG_IF(ERROR, ret != LIBCURVE_ERROR::OK)
             << "Create file failed, filename: " << filename << ", ret: " << ret;
     } else {
@@ -575,7 +592,7 @@ int FileClient::Listdir(const std::string& dirpath,
 int FileClient::Mkdir(const std::string& dirpath, const UserInfo_t& userinfo) {
     LIBCURVE_ERROR ret;
     if (mdsClient_ != nullptr) {
-        ret = mdsClient_->CreateFile(dirpath, userinfo, 0, false);
+        ret = mdsClient_->CreateFile(dirpath, "", userinfo, 0, false);
         if (ret != LIBCURVE_ERROR::OK) {
             if (ret == LIBCURVE_ERROR::EXISTS) {
                 LOG(WARNING) << "Create directory failed, " << dirpath
@@ -906,6 +923,19 @@ int Create2(const char* filename, const C_UserInfo_t* userinfo, size_t size,
     return globalclient->Create2(filename,
             UserInfo(userinfo->owner, userinfo->password),
                        size, stripeUnit, stripeCount);
+}
+
+int Create3(const char* filename, const C_UserInfo_t* userinfo, size_t size,
+                                uint64_t stripeUnit, uint64_t stripeCount,
+                                const char* poolsetName) {
+    if (globalclient == nullptr) {
+        LOG(ERROR) << "not inited!";
+        return -LIBCURVE_ERROR::FAILED;
+    }
+
+    return globalclient->Create3(filename,
+            UserInfo(userinfo->owner, userinfo->password),
+                       size, stripeUnit, stripeCount, poolsetName);
 }
 
 int Rename(const C_UserInfo_t* userinfo,

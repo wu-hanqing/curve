@@ -129,7 +129,7 @@ class CurvefsTools {
 
     int ListPoolset(std::list<PoolsetInfo> *poolsetInfos);
     int ListPhysicalPool(std::list<PhysicalPoolInfo> *physicalPoolInfos);
-    int AddPhysicalPoolsInPoolset(PoolsetIdType poolsetid,
+    int ListPhysicalPoolsInPoolset(PoolsetIdType poolsetid,
         std::list<PhysicalPoolInfo> *physicalPoolInfos);
 
     int ListLogicalPool(const std::string& phyPoolName,

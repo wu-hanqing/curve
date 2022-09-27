@@ -223,7 +223,9 @@ bool PhysicalPool::SerializeToString(std::string *value) const {
     data.set_physicalpoolid(id_);
     data.set_physicalpoolname(name_);
     data.set_desc(desc_);
-    data.set_poolsetid(poolsetId_);
+    if (poolsetId_ != UNINTIALIZE_ID) {
+        data.set_poolsetid(poolsetId_);
+    }
     return data.SerializeToString(value);
 }
 
@@ -233,7 +235,9 @@ bool PhysicalPool::ParseFromString(const std::string &value) {
     id_ = data.physicalpoolid();
     name_ = data.physicalpoolname();
     desc_ = data.desc();
-    poolsetId_ = data.poolsetid();
+    if (data.has_poolsetid()) {
+        poolsetId_ = data.poolsetid();
+    }
     return ret;
 }
 

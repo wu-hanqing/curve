@@ -99,7 +99,6 @@ int TopologyImpl::AddPhysicalPoolJustForTest(const PhysicalPool &data) {
         if (!storage_->StoragePhysicalPool(data)) {
             return kTopoErrCodeStorgeFail;
         }
-        // it->second.AddPhysicalPool(data.GetId());
         physicalPoolMap_[data.GetId()] = data;
         return kTopoErrCodeSuccess;
     } else {
@@ -237,23 +236,6 @@ int TopologyImpl::RemovePoolset(PoolsetIdType id) {
         return kTopoErrCodeSuccess;
     } else {
         return kTopoErrCodePoolsetNotFound;
-    }
-}
-
-int TopologyImpl::RemovePhysicalPoolNotInPoolset(PoolIdType id) {
-    WriteLockGuard wlockPhysicalPool(physicalPoolMutex_);
-    auto it = physicalPoolMap_.find(id);
-    if (it != physicalPoolMap_.end()) {
-        if (it->second.GetZoneList().size() != 0) {
-            return kTopoErrCodeCannotRemoveWhenNotEmpty;
-        }
-        if (!storage_->DeletePhysicalPool(id)) {
-            return kTopoErrCodeStorgeFail;
-        }
-        physicalPoolMap_.erase(it);
-        return kTopoErrCodeSuccess;
-    } else {
-        return kTopoErrCodePhysicalPoolNotFound;
     }
 }
 
@@ -781,7 +763,15 @@ bool TopologyImpl::GetPhysicalPool(PoolIdType poolId, PhysicalPool *out) const {
     }
     return false;
 }
-
+int TopologyImpl::UpgradePhysicalPool(PoolIdType poolId, PoolsetIdType pstId) {
+    WriteLockGuard wlockPhysicalPool(physicalPoolMutex_);
+    auto it = physicalPoolMap_.find(poolId);
+    it->second.SetPoolsetId(pstId);
+     if (!storage_->StoragePhysicalPool(it->second)) {
+                return kTopoErrCodeStorgeFail;
+            }
+    return kTopoErrCodeSuccess;
+}
 bool TopologyImpl::GetZone(ZoneIdType zoneId, Zone *out) const {
     ReadLockGuard rlockZone(zoneMutex_);
     auto it = zoneMap_.find(zoneId);
@@ -1045,6 +1035,15 @@ int TopologyImpl::Init(const TopologyOption &option) {
     WriteLockGuard wlockServer(serverMutex_);
     WriteLockGuard wlockChunkServer(chunkServerMutex_);
     WriteLockGuard wlockCopySet(copySetMutex_);
+
+    PoolsetIdType maxPoolsetId;
+    if (!storage_->LoadPoolset(&poolsetMap_, &maxPoolsetId)) {
+        LOG(ERROR) << "[TopologyImpl::init], LoadPoolset fail.";
+        return kTopoErrCodeStorgeFail;
+    }
+    idGenerator_->initPoolsetIdGenerator(maxPoolsetId);
+    LOG(INFO) << "[TopologyImpl::init], LoadPoolset success, "
+              << "poolset num = " << poolsetMap_.size();
 
     PoolIdType maxLogicalPoolId;
     if (!storage_->LoadLogicalPool(&logicalPoolMap_, &maxLogicalPoolId)) {

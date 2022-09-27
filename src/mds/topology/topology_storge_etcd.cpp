@@ -31,6 +31,43 @@ namespace curve {
 namespace mds {
 namespace topology {
 
+bool TopologyStorageEtcd::LoadPoolset(
+    std::unordered_map<PoolsetIdType, Poolset> *poolsetMap,
+    PoolsetIdType *maxPoolsetId) {
+    std::vector<std::string> out;
+    poolsetMap->clear();
+    *maxPoolsetId = 0;
+    int errCode = client_->List(
+        POOLSETKEYPREFIX, POOLSETKEYEND, &out);
+    if (errCode == EtcdErrCode::EtcdKeyNotExist) {
+        return true;
+    }
+    if (errCode != EtcdErrCode::EtcdOK) {
+        LOG(ERROR) << "etcd list err:" << errCode;
+        return false;
+    }
+    for (int i = 0; i < out.size(); i++) {
+        Poolset data;
+        errCode = codec_->DecodePoolsetData(out[i], &data);
+        if (!errCode) {
+            LOG(ERROR) << "DecodePoolsetData err";
+            return false;
+        }
+        PoolsetIdType id = data.GetId();
+        auto ret = poolsetMap->emplace(id, std::move(data));
+        if (!ret.second) {
+            LOG(ERROR) << "LoadPoolset: "
+                        << "PoolsetId duplicated, PoolsetId = "
+                        << id;
+            return false;
+        }
+        if (*maxPoolsetId < id) {
+            *maxPoolsetId = id;
+        }
+    }
+    return true;
+}
+
 bool TopologyStorageEtcd::LoadLogicalPool(
     std::unordered_map<PoolIdType, LogicalPool> *logicalPoolMap,
     PoolIdType *maxLogicalPoolId) {

@@ -47,7 +47,9 @@ class MockNameSpaceToolCore : public NameSpaceToolCore {
                                      const CopySetIdType&,
                                      std::vector<ChunkServerLocation>*));
     MOCK_METHOD2(DeleteFile, int(const std::string&, bool));
-    MOCK_METHOD5(CreateFile, int(const std::string&, uint64_t, bool,
+    MOCK_METHOD6(CreateFile, int(const std::string&,
+                                const std::string&,
+                                uint64_t, bool,
                                 uint64_t, uint64_t));
     MOCK_METHOD3(GetAllocatedSize, int(const std::string&,
                                        uint64_t*, AllocMap*));

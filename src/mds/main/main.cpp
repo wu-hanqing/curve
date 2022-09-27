@@ -39,6 +39,7 @@ using ::curve::mds::kTB;
 
 DEFINE_uint64(chunkSize, 16 * kMB, "chunk size");
 DEFINE_uint64(segmentSize, 1 * kGB, "segment size");
+DEFINE_string(poolset, "", "poolset name");
 DEFINE_uint64(minFileLength, 10 * kGB, "min filelength");
 DEFINE_uint64(maxFileLength, 20 * kTB, "max filelength");
 
@@ -50,6 +51,10 @@ void LoadConfigFromCmdline(Configuration *conf) {
 
     if (GetCommandLineFlagInfo("etcdAddr", &info) && !info.is_default) {
         conf->SetStringValue("mds.etcd.endpoint", FLAGS_etcdAddr);
+    }
+
+    if (GetCommandLineFlagInfo("poolset", &info) && !info.is_default) {
+        conf->SetStringValue("mds.curvefs.defaultPoolset", FLAGS_poolset);
     }
 
     if (GetCommandLineFlagInfo("chunkSize", &info) && !info.is_default) {

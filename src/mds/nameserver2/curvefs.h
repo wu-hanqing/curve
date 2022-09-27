@@ -70,6 +70,7 @@ struct CurveFSOption {
     uint64_t defaultSegmentSize;
     uint64_t minFileLength;
     uint64_t maxFileLength;
+    std::string defaultPoolset;
     RootAuthOption authOptions;
     FileRecordOptions fileRecordOptions;
     ThrottleOption throttleOption;
@@ -141,6 +142,7 @@ class CurveFS {
      *  @return return StatusCode::kOK if succeeded
      */
     StatusCode CreateFile(const std::string & fileName,
+                          const std::string & poolsetName,
                           const std::string& owner,
                           FileType filetype,
                           uint64_t length,
@@ -213,6 +215,13 @@ class CurveFS {
     StatusCode RecoverFile(const std::string & originFileName,
                            const std::string & recycleFileName,
                            uint64_t fileId);
+
+    /**
+     *  @brief check poolset name
+     *  @param[in] pstName: poolset name
+     *  @return StatusCode::kOK if poolset exist
+     */
+    StatusCode CheckPoolsetName(const std::string & pstName);
 
     /**
      * @brief increase file epoch
@@ -820,6 +829,7 @@ class CurveFS {
     uint64_t defaultSegmentSize_;
     uint64_t minFileLength_;
     uint64_t maxFileLength_;
+    std::string defaultPoolset_;
     std::chrono::steady_clock::time_point startTime_;
 };
 extern CurveFS &kCurveFS;
