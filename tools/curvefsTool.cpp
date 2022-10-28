@@ -54,6 +54,10 @@ const char kInternalIp[] = "internalip";
 const char kInternalPort[] = "internalport";
 const char kExternalIp[] = "externalip";
 const char kExternalPort[] = "externalport";
+const char kUcpInternalIp[] = "ucp_internalip";
+const char kUcpInternalPort[] = "ucp_internalport";
+const char kUcpExternalIp[] = "ucp_externalip";
+const char kUcpExternalPort[] = "ucp_externalport";
 const char kZone[] = "zone";
 const char kPhysicalPool[] = "physicalpool";
 const char kType[] = "type";
@@ -92,7 +96,7 @@ int CurvefsTools::Init() {
     UpdateFlagsFromConf(&conf);
     SplitString(FLAGS_mds_addr, ",", &mdsAddressStr_);
     if (mdsAddressStr_.size() <= 0) {
-        LOG(ERROR) << "no avaliable mds address.";
+        LOG(ERROR) << "no available mds address.";
         return kRetCodeCommonErr;
     }
 
@@ -109,7 +113,7 @@ int CurvefsTools::Init() {
 
 int CurvefsTools::TryAnotherMdsAddress() {
     if (mdsAddressStr_.size() == 0) {
-        LOG(ERROR) << "no avaliable mds address.";
+        LOG(ERROR) << "no available mds address.";
         return kRetCodeCommonErr;
     }
     mdsAddressIndex_ = (mdsAddressIndex_ + 1) % mdsAddressStr_.size();
@@ -312,6 +316,27 @@ int CurvefsTools::ReadClusterMap() {
     return 0;
 }
 
+bool SupportUcp(const Json::Value& externalIp,
+                const Json::Value& externalPort,
+                const Json::Value& internalIp,
+                const Json::Value& internalPort ) {
+    // all fields doesn't exists
+    if (!externalIp && !externalPort && !internalIp && !internalPort) {
+        return false;
+    }
+
+    // all fields exists
+    if (externalIp && externalPort && internalIp && internalPort) {
+        if (externalIp.isString() && externalPort.isUInt() &&
+            internalIp.isString() && internalPort.isUInt()) {
+            return true;
+        }
+    }
+
+    LOG(ERROR) << "Some ucp fields doesn't exists or doesn't set properly";
+    return false;
+}
+
 int CurvefsTools::InitServerData() {
     if (clusterMap_[kServers].isNull()) {
         LOG(ERROR) << "No servers in cluster map";
@@ -354,7 +379,18 @@ int CurvefsTools::InitServerData() {
             return -1;
         }
         serverData.physicalPoolName = server[kPhysicalPool].asString();
-        serverDatas.emplace_back(serverData);
+
+        if (SupportUcp(server[kUcpExternalIp], server[kUcpExternalPort],
+                       server[kUcpInternalIp], server[kUcpExternalPort])) {
+            serverData.ucpExternalEp = CurveServerData::ServerEndpoint{
+                    server[kUcpExternalIp].asString(),
+                    server[kUcpExternalPort].asUInt()};
+            serverData.ucpInternalEp = CurveServerData::ServerEndpoint{
+                    server[kUcpInternalIp].asString(),
+                    server[kUcpInternalPort].asUInt()};
+        }
+
+        serverDatas.emplace_back(std::move(serverData));
     }
     return 0;
 }
@@ -788,6 +824,16 @@ int CurvefsTools::CreateServer() {
         request.set_zonename(it.zoneName);
         request.set_physicalpoolname(it.physicalPoolName);
         request.set_desc("");
+
+        if (it.ucpInternalEp) {
+            request.set_ucpinternalhostip(it.ucpInternalEp->ip);
+            request.set_ucpinternalport(it.ucpInternalEp->port);
+        }
+
+        if (it.ucpExternalEp) {
+            request.set_ucpexternalhostip(it.ucpExternalEp->ip);
+            request.set_ucpexternalport(it.ucpExternalEp->port);
+        }
 
         ServerRegistResponse response;
 

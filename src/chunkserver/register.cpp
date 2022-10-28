@@ -34,6 +34,7 @@
 #include "src/common/uri_parser.h"
 #include "src/chunkserver/chunkserver_helper.h"
 #include "proto/topology.pb.h"
+#include "src/chunkserver/chunkserver.h"
 
 namespace curve {
 namespace chunkserver {
@@ -64,6 +65,18 @@ int Register::RegisterToMDS(const ChunkServerMetadata *localMetadata,
         req.set_externalip(ops_.chunkserverExternalIp);
     }
     req.set_port(ops_.chunkserverPort);
+
+    if (ops_.ucpOptions != nullptr && ops_.ucpOptions->enable) {
+        auto* internal = req.mutable_ucpinternalendpoint();
+        internal->set_ip(ops_.ucpOptions->internalIp);
+        internal->set_port(ops_.ucpOptions->internalPort);
+
+        if (ops_.ucpOptions->enableExternalServer) {
+            auto* external = req.mutable_ucpexternalendpoint();
+            external->set_ip(ops_.ucpOptions->externalIp);
+            external->set_port(ops_.ucpOptions->externalPort);
+        }
+    }
 
     if (localMetadata != nullptr) {
         req.set_chunkserverid(localMetadata->id());

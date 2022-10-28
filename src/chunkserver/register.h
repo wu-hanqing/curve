@@ -36,6 +36,8 @@ namespace curve {
 namespace chunkserver {
 const uint32_t CURRENT_METADATA_VERSION = 0x01;
 
+struct UcpOptions;
+
 // register配置选项
 struct RegisterOptions {
     std::string mdsListenAddr;
@@ -50,6 +52,8 @@ struct RegisterOptions {
     int registerTimeout;
 
     std::shared_ptr<LocalFileSystem> fs;
+
+    const UcpOptions* ucpOptions = nullptr;
 };
 
 class Register {

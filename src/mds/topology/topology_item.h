@@ -23,6 +23,7 @@
 #ifndef SRC_MDS_TOPOLOGY_TOPOLOGY_ITEM_H_
 #define SRC_MDS_TOPOLOGY_TOPOLOGY_ITEM_H_
 
+#include <cstdint>
 #include <list>
 #include <string>
 #include <set>
@@ -32,9 +33,16 @@
 #include "proto/topology.pb.h"
 #include "src/common/concurrent/concurrent.h"
 
+#include "absl/types/optional.h"
+
 namespace curve {
 namespace mds {
 namespace topology {
+
+struct Endpoint {
+    std::string ip;
+    int32_t port;
+};
 
 /**
  * @brief cluster information, so far we only use clusterId
@@ -421,6 +429,22 @@ class Server {
         return chunkserverList_;
     }
 
+    void SetUcpInternalEp(const std::string& ip, int32_t port) {
+        ucpInternalEp_ = Endpoint{ip, port};
+    }
+
+    void SetUcpExternalEp(const std::string& ip, int32_t port) {
+        ucpExternalEp_ = Endpoint{ip, port};
+    }
+
+    const absl::optional<Endpoint>& GetUcpInternalEp() const {
+        return ucpInternalEp_;
+    }
+
+    const absl::optional<Endpoint>& GetUcpExternalEp() const {
+        return ucpExternalEp_;
+    }
+
     bool SerializeToString(std::string *value) const;
 
     bool ParseFromString(const std::string &value);
@@ -437,6 +461,9 @@ class Server {
     std::string desc_;
 
     std::list<ChunkServerIdType> chunkserverList_;
+
+    absl::optional<Endpoint> ucpInternalEp_;
+    absl::optional<Endpoint> ucpExternalEp_;
 };
 
 class ChunkServerState {
@@ -524,6 +551,8 @@ class ChunkServer {
         status_(v.status_),
         onlineState_(v.onlineState_),
         state_(v.state_),
+        ucpInternalEp_(v.ucpInternalEp_),
+        ucpExternalEp_(v.ucpExternalEp_),
         dirty_(v.dirty_) {}
 
     ChunkServer& operator= (const ChunkServer& v) {
@@ -543,6 +572,8 @@ class ChunkServer {
         onlineState_ = v.onlineState_;
         state_ = v.state_;
         dirty_ = v.dirty_;
+        ucpInternalEp_ = v.ucpInternalEp_;
+        ucpExternalEp_ = v.ucpExternalEp_;
         return *this;
     }
 
@@ -632,6 +663,22 @@ class ChunkServer {
         return mutex_;
     }
 
+    void SetUcpInternalEp(const std::string& ip, int32_t port) {
+        ucpInternalEp_ = Endpoint{ip, port};
+    }
+
+    void SetUcpExternalEp(const std::string& ip, int32_t port) {
+        ucpExternalEp_ = Endpoint{ip, port};
+    }
+
+    const absl::optional<Endpoint>& GetUcpInternalEp() const {
+        return ucpInternalEp_;
+    }
+
+    const absl::optional<Endpoint>& GetUcpExternalEp() const {
+        return ucpExternalEp_;
+    }
+
     bool SerializeToString(std::string *value) const;
 
     bool ParseFromString(const std::string &value);
@@ -655,6 +702,9 @@ class ChunkServer {
     OnlineState onlineState_;  // 0:online、1: offline
 
     ChunkServerState state_;
+
+    absl::optional<Endpoint> ucpInternalEp_;
+    absl::optional<Endpoint> ucpExternalEp_;
 
     /**
      * @brief to mark whether data is dirty, for writing to storage regularly

@@ -43,6 +43,7 @@
 #include "src/chunkserver/raftsnapshot/curve_snapshot_storage.h"
 #include "src/chunkserver/raftlog/curve_segment_log_storage.h"
 #include "src/common/curve_version.h"
+#include "src/chunkserver/register.h"
 
 using ::curve::fs::LocalFileSystem;
 using ::curve::fs::LocalFileSystemOption;
@@ -80,6 +81,40 @@ const char* kProtocalCurve = "curve";
 namespace curve {
 namespace chunkserver {
 
+void InitUcpOptions(common::Configuration* conf, UcpOptions* opts) {
+    LOG_IF(FATAL,
+           !conf->GetBoolValue(UcpOptions::kUcpEnableOption, &opts->enable))
+            << "Failed to get " << UcpOptions::kUcpEnableOption;
+
+    if (!opts->enable) {
+        return;
+    }
+
+    LOG_IF(FATAL, !conf->GetStringValue(UcpOptions::kUcpInternalIpOption,
+                                        &opts->internalIp))
+            << "Failed to get " << UcpOptions::kUcpInternalIpOption;
+
+    LOG_IF(FATAL, !conf->GetIntValue(UcpOptions::kUcpInternalPortOption,
+                                     &opts->internalPort))
+            << "Failed to get " << UcpOptions::kUcpInternalPortOption;
+
+    LOG_IF(FATAL, !conf->GetBoolValue(UcpOptions::kUcpEnableExternalServer,
+                                      &opts->enableExternalServer))
+            << "Failed to get " << UcpOptions::kUcpEnableExternalServer;
+
+    if (!opts->enableExternalServer) {
+        return;
+    }
+
+    LOG_IF(FATAL, !conf->GetStringValue(UcpOptions::kUcpExternalIpOption,
+                                        &opts->externalIp))
+            << "Failed to get " << UcpOptions::kUcpExternalIpOption;
+
+    LOG_IF(FATAL, !conf->GetIntValue(UcpOptions::kUcpExternalPortOption,
+                                     &opts->internalPort))
+            << "Failed to get " << UcpOptions::kUcpExternalPortOption;
+}
+
 int ChunkServer::Run(int argc, char** argv) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
@@ -112,6 +147,9 @@ int ChunkServer::Run(int argc, char** argv) {
         << "Failed to get global.min_io_alignment";
     LOG_IF(FATAL, !common::is_aligned(FLAGS_minIoAlignment, 512))
         << "minIoAlignment should align to 512";
+
+    UcpOptions ucpOptions;
+    InitUcpOptions(&conf, &ucpOptions);
 
     // 优先初始化 metric 收集模块
     ChunkServerMetricOptions metricOptions;
@@ -190,6 +228,7 @@ int ChunkServer::Run(int argc, char** argv) {
     // 初始化注册模块
     RegisterOptions registerOptions;
     InitRegisterOptions(&conf, &registerOptions);
+    registerOptions.ucpOptions = &ucpOptions;
     registerOptions.fs = fs;
     Register registerMDS(registerOptions);
     ChunkServerMetadata metadata;

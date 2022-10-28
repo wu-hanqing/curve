@@ -38,8 +38,10 @@
 #include "brpc/server.h"
 #include "proto/copyset.pb.h"
 
+#include "proto/topology.pb.h"
 #include "src/common/concurrent/concurrent.h"
 #include "src/common/concurrent/name_lock.h"
+#include "src/mds/topology/topology_item.h"
 
 namespace curve {
 namespace mds {
@@ -145,6 +147,7 @@ void TopologyServiceManager::RegistChunkServer(
         return;
     }
 
+    // 哪里处理topo中port为0的server
     ServerIdType serverId =
         topology_->FindServerByHostIpPort(request->hostip(), request->port());
     if (serverId ==
@@ -153,6 +156,7 @@ void TopologyServiceManager::RegistChunkServer(
         return;
     }
 
+    // 新节点加入，分配Id
     ChunkServerIdType chunkServerId = topology_->AllocateChunkServerId();
     if (chunkServerId ==
         static_cast<ChunkServerIdType>(
@@ -192,6 +196,16 @@ void TopologyServiceManager::RegistChunkServer(
         READWRITE,
         ONLINE,
         externalIp);
+
+    if (request->has_ucpinternalendpoint()) {
+        server.SetUcpInternalEp(request->ucpinternalendpoint().ip(),
+                                request->ucpinternalendpoint().port());
+
+        if (request->has_ucpexternalendpoint()) {
+            server.SetUcpExternalEp(request->ucpexternalendpoint().ip(),
+                                    request->ucpexternalendpoint().port());
+        }
+    }
 
     int errcode = topology_->AddChunkServer(chunkserver);
     if (errcode == kTopoErrCodeSuccess) {
@@ -297,6 +311,21 @@ void TopologyServiceManager::GetChunkServer(
     csInfo->set_status(cs.GetStatus());
     csInfo->set_onlinestate(cs.GetOnlineState());
 
+    auto setPbEndpoint = [](const Endpoint& ep, EndpointPB* pb) {
+        pb->set_ip(ep.ip);
+        pb->set_port(ep.port);
+    };
+
+    const auto& ep = cs.GetUcpInternalEp();
+    if (ep) {
+        setPbEndpoint(*ep, csInfo->mutable_ucpinternalep());
+
+        const auto& externalEp = cs.GetUcpExternalEp();
+        if (externalEp) {
+            setPbEndpoint(*externalEp, csInfo->mutable_ucpexternalep());
+        }
+    }
+
     ChunkServerState st = cs.GetChunkServerState();
     csInfo->set_diskstatus(st.GetDiskState());
     csInfo->set_mountpoint(cs.GetMountPoint());
@@ -338,6 +367,8 @@ void TopologyServiceManager::RegistServer(const ServerRegistRequest *request,
         response->set_statuscode(kTopoErrCodeInvalidParam);
         return;
     }
+
+    // TODO(wuhanqing): ucp ip&port 全部存在或者不存在
 
     PhysicalPool pPool;
     if (request->has_physicalpoolid()) {
@@ -392,6 +423,7 @@ void TopologyServiceManager::RegistServer(const ServerRegistRequest *request,
         return;
     }
 
+    // 分配ID，然后添加到topo中
     ServerIdType serverId = topology_->AllocateServerId();
     if (serverId ==
         static_cast<ServerIdType>(UNINTIALIZE_ID)) {
@@ -408,6 +440,16 @@ void TopologyServiceManager::RegistServer(const ServerRegistRequest *request,
                   zone.GetId(),
                   pPool.GetId(),
                   request->desc());
+
+    if (request->has_ucpinternalendpoint()) {
+        server.SetUcpInternalEp(request->ucpinternalendpoint().ip(),
+                                request->ucpinternalendpoint().port());
+
+        if (request->has_ucpexternalendpoint()) {
+            server.SetUcpExternalEp(request->ucpexternalendpoint().ip(),
+                                    request->ucpexternalendpoint().port());
+        }
+    }
 
     int errcode = topology_->AddServer(server);
     if (kTopoErrCodeSuccess == errcode) {
