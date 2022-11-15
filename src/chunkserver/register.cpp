@@ -87,7 +87,8 @@ int Register::RegisterToMDS(const ChunkServerMetadata *localMetadata,
               << ". internal ip: " << ops_.chunkserverInternalIp
               << ", port: " << ops_.chunkserverPort
               << ", enable external server: " << ops_.enableExternalServer
-              << ", external ip: " << ops_.chunkserverExternalIp;
+              << ", external ip: " << ops_.chunkserverExternalIp
+              << ", register request:\n" << req.DebugString();
 
     int retries = ops_.registerRetries;
     while (retries >= 0) {

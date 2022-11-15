@@ -826,13 +826,15 @@ int CurvefsTools::CreateServer() {
         request.set_desc("");
 
         if (it.ucpInternalEp) {
-            request.set_ucpinternalhostip(it.ucpInternalEp->ip);
-            request.set_ucpinternalport(it.ucpInternalEp->port);
+            auto* ep = request.mutable_ucpinternalendpoint();
+            ep->set_ip(it.ucpInternalEp->ip);
+            ep->set_port(it.ucpInternalEp->port);
         }
 
         if (it.ucpExternalEp) {
-            request.set_ucpexternalhostip(it.ucpExternalEp->ip);
-            request.set_ucpexternalport(it.ucpExternalEp->port);
+            auto* ep = request.mutable_ucpexternalendpoint();
+            ep->set_ip(it.ucpExternalEp->ip);
+            ep->set_port(it.ucpExternalEp->port);
         }
 
         ServerRegistResponse response;

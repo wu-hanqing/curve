@@ -89,11 +89,13 @@ template <typename T> struct CURVE_CACHELINE_ALIGNMENT CopysetPeerInfo {
     bool operator==(const CopysetPeerInfo &other) const {
         return this->internalAddr == other.internalAddr &&
                this->externalAddr == other.externalAddr;
+               // FIXME: here
     }
 
     bool IsEmpty() const {
         return this->peerID == 0 && this->internalAddr.IsEmpty() &&
                this->externalAddr.IsEmpty();
+               // FIXME: here
     }
 
     friend std::ostream& operator<<(std::ostream& os,

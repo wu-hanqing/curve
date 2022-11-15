@@ -20,6 +20,7 @@
  * Author: lixiaocui
  */
 
+#include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include <butil/endpoint.h>
@@ -27,6 +28,7 @@
 #include <braft/raft_service.h>
 #include <braft/storage.h>
 
+#include <cstring>
 #include <memory>
 
 #include "src/chunkserver/chunkserver.h"
@@ -57,6 +59,14 @@ DEFINE_string(chunkServerIp, "127.0.0.1", "chunkserver ip");
 DEFINE_bool(enableExternalServer, false, "start external server or not");
 DEFINE_string(chunkServerExternalIp, "127.0.0.1", "chunkserver external ip");
 DEFINE_int32(chunkServerPort, 8200, "chunkserver port");
+
+DEFINE_bool(enableUcp, false, "enable listen on ucp connection");
+DEFINE_string(ucpIp, "127.0.0.1", "chunkserver ucp internal ip");
+DEFINE_int32(ucpPort, 9200, "chunkserver ucp internal port");
+DEFINE_bool(enableUcpExternalServer, false, "xxx");
+DEFINE_string(ucpExternalIp, "127.0.0.1", "chunkserver ucp external ip");
+DEFINE_int32(ucpExternalPort, 9200, "chunkserver ucp external port");
+
 DEFINE_string(chunkServerStoreUri, "local://./0/", "chunkserver store uri");
 DEFINE_string(chunkServerMetaUri,
     "local://./0/chunkserver.dat", "chunnkserver meata uri");
@@ -344,6 +354,7 @@ int ChunkServer::Run(int argc, char** argv) {
     brpc::Server server;
     brpc::Server externalServer;
     // We need call braft::add_service to add endPoint to braft::NodeManager
+    // FIXME: should add twice
     braft::add_service(&server, endPoint);
 
     // copyset service
@@ -411,8 +422,24 @@ int ChunkServer::Run(int argc, char** argv) {
     // 启动rpc service
     LOG(INFO) << "Internal server is going to serve on: "
               << copysetNodeOptions.ip << ":" << copysetNodeOptions.port;
-    if (server.Start(endPoint, NULL) != 0) {
-        LOG(ERROR) << "Fail to start Internal Server";
+    brpc::ServerOptions options;
+
+    if (ucpOptions.enable) {
+        options.enable_ucp = true;
+        options.ucp_address = ucpOptions.internalIp;
+        options.ucp_port = ucpOptions.internalPort;
+        LOG(INFO) << "Internal server is going to serve on: "
+                  << butil::ip2str(endPoint.ip).c_str() << ":" << endPoint.port
+                  << ", ucp endpoint " << options.ucp_address << ":"
+                  << options.ucp_port;
+    } else {
+        LOG(INFO) << "Internal server is going to serve on: "
+                  << copysetNodeOptions.ip << ":" << copysetNodeOptions.port;
+    }
+
+    if (server.Start(endPoint, &options) != 0) {
+        LOG(ERROR) << "Fail to start Internal Server, error: "
+                   << strerror(errno);
         return -1;
     }
     /* 启动external server
@@ -437,8 +464,23 @@ int ChunkServer::Run(int argc, char** argv) {
         CHECK(0 == ret) << "Fail to add RaftStatService at external server";
         std::string externalAddr = registerOptions.chunkserverExternalIp + ":" +
                                 std::to_string(registerOptions.chunkserverPort);
-        LOG(INFO) << "External server is going to serve on: " << externalAddr;
-        if (externalServer.Start(externalAddr.c_str(), NULL) != 0) {
+        // LOG(INFO) << "External server is going to serve on: " << externalAddr;
+
+        brpc::ServerOptions externalOptions;
+        if (ucpOptions.enableExternalServer) {
+            externalOptions.enable_ucp = true;
+            externalOptions.ucp_address = ucpOptions.externalIp;
+            externalOptions.ucp_port = ucpOptions.externalPort;
+            LOG(INFO) << "External server is going to serve on: "
+                      << externalAddr << ", ucp endpoint "
+                      << externalOptions.ucp_address << ":"
+                      << externalOptions.ucp_port;
+        } else {
+            LOG(INFO) << "External server is going to serve on: "
+                      << externalAddr;
+        }
+
+        if (externalServer.Start(externalAddr.c_str(), &externalOptions) != 0) {
             LOG(ERROR) << "Fail to start External Server";
             return -1;
         }
@@ -753,6 +795,53 @@ void ChunkServer::InitMetricOptions(
         "metric.onoff", &metricOptions->collectMetric));
 }
 
+namespace {
+void SetUcpOptionsFromCmdline(common::Configuration* conf) {
+    if (!FLAGS_enableUcp) {
+        return;
+    }
+
+    conf->SetBoolValue(UcpOptions::kUcpEnableOption, true);
+
+    google::CommandLineFlagInfo info;
+    if (google::GetCommandLineFlagInfo("ucpIp", &info) && !info.is_default) {
+        conf->SetStringValue(UcpOptions::kUcpInternalIpOption, FLAGS_ucpIp);
+    } else {
+        LOG(FATAL) << "ucpIp must be set when enable ucp connection";
+    }
+
+    if (google::GetCommandLineFlagInfo("ucpPort", &info) && !info.is_default) {
+        conf->SetIntValue(UcpOptions::kUcpInternalPortOption, FLAGS_ucpPort);
+    } else {
+        LOG(FATAL) << "ucpPort must be set when enable ucp connection";
+    }
+
+    if (!FLAGS_enableUcpExternalServer) {
+        return;
+    }
+
+    conf->SetBoolValue(UcpOptions::kUcpEnableExternalServer, true);
+
+    if (google::GetCommandLineFlagInfo("ucpExternalIp", &info) &&
+        !info.is_default) {
+        conf->SetStringValue(UcpOptions::kUcpExternalIpOption,
+                             FLAGS_ucpExternalIp);
+    } else {
+        LOG(FATAL) << "ucpExternalIp must be set when enable ucp "
+                      "connection and enable ucp external server";
+    }
+
+    if (google::GetCommandLineFlagInfo("ucpExternalPort", &info) &&
+        !info.is_default) {
+        conf->SetIntValue(UcpOptions::kUcpExternalPortOption,
+                          FLAGS_ucpExternalPort);
+    } else {
+        LOG(FATAL) << "ucpExternalPort must be set when enable ucp "
+                      "connection and enable ucp external server";
+    }
+}
+}  // namespace
+
 void ChunkServer::LoadConfigFromCmdline(common::Configuration *conf) {
     // 如果命令行有设置, 命令行覆盖配置文件中的字段
     google::CommandLineFlagInfo info;
@@ -896,6 +985,8 @@ void ChunkServer::LoadConfigFromCmdline(common::Configuration *conf) {
     if (GetCommandLineFlagInfo("minIoAlignment", &info) && !info.is_default) {
         conf->SetUInt32Value("global.min_io_alignment", FLAGS_minIoAlignment);
     }
+
+    SetUcpOptionsFromCmdline(conf);
 }
 
 int ChunkServer::GetChunkServerMetaFromLocal(
