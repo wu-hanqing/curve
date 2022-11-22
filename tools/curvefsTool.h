@@ -77,6 +77,7 @@ struct CurveLogicalPoolData {
     uint64_t copysetNum;
     uint32_t zoneNum;
     uint32_t scatterwidth;
+    bool useUcp = false;
 };
 
 struct CurveZoneData {

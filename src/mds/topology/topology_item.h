@@ -219,6 +219,14 @@ class LogicalPool {
         return scanEnable_;
     }
 
+    void SetUcpConnection(bool flag) {
+        ucpConn_ = flag;
+    }
+
+    bool GetUcpConnection() const {
+        return ucpConn_;
+    }
+
  private:
     PoolIdType id_;
 
@@ -236,6 +244,7 @@ class LogicalPool {
     AllocateStatus status_;
     bool avaliable_;
     bool scanEnable_;
+    bool ucpConn_ = false;
 };
 
 class PhysicalPool {
@@ -671,11 +680,11 @@ class ChunkServer {
         ucpExternalEp_ = Endpoint{ip, port};
     }
 
-    const absl::optional<Endpoint>& GetUcpInternalEp() const {
+    const absl::optional<Endpoint>& GetUcpInternalEndpoint() const {
         return ucpInternalEp_;
     }
 
-    const absl::optional<Endpoint>& GetUcpExternalEp() const {
+    const absl::optional<Endpoint>& GetUcpExternalEndpoint() const {
         return ucpExternalEp_;
     }
 
@@ -917,6 +926,14 @@ class CopySetInfo {
 
     bool ParseFromString(const std::string &value);
 
+    void SetUcpConnection(bool flag) {
+        ucpConn_ = flag;
+    }
+
+    bool GetUcpConnection() const {
+        return ucpConn_;
+    }
+
  private:
     PoolIdType logicalPoolId_;
     CopySetIdType copySetId_;
@@ -957,6 +974,8 @@ class CopySetInfo {
      *        read/write on the chunksever
      */
     mutable ::curve::common::RWLock mutex_;
+
+    bool ucpConn_ = false;
 };
 
 /**

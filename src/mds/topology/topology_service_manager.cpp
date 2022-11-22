@@ -316,11 +316,11 @@ void TopologyServiceManager::GetChunkServer(
         pb->set_port(ep.port);
     };
 
-    const auto& ep = cs.GetUcpInternalEp();
+    const auto& ep = cs.GetUcpInternalEndpoint();
     if (ep) {
         setPbEndpoint(*ep, csInfo->mutable_ucpinternalep());
 
-        const auto& externalEp = cs.GetUcpExternalEp();
+        const auto& externalEp = cs.GetUcpExternalEndpoint();
         if (externalEp) {
             setPbEndpoint(*externalEp, csInfo->mutable_ucpexternalep());
         }
@@ -969,6 +969,7 @@ int TopologyServiceManager::GenCopysetForPageFilePool(
         return kTopoErrCodeInvalidParam;
     }
 
+    const bool useUcpConn = lPool.GetUcpConnection();
     for (const Copyset &cs : copysets) {
         CopySetIdType copysetId =
             topology_->AllocateCopySetId(logicalPoolId);
@@ -978,6 +979,7 @@ int TopologyServiceManager::GenCopysetForPageFilePool(
         }
         CopySetInfo copysetInfo(logicalPoolId, copysetId);
         copysetInfo.SetCopySetMembers(cs.replicas);
+        copysetInfo.SetUcpConnection(useUcpConn);
         int errcode = topology_->AddCopySet(copysetInfo);
         if (kTopoErrCodeSuccess != errcode) {
             return errcode;
@@ -1046,13 +1048,29 @@ bool TopologyServiceManager::CreateCopysetNodeOnChunkServer(
                     return false;
                 }
 
-                std::string address =
-                    BuildPeerId(chunkserverInfo.GetHostIp(),
-                    chunkserverInfo.GetPort());
+                const bool useUcpConn = cs.GetUcpConnection();
+                if (useUcpConn && !chunkserverInfo.GetUcpInternalEndpoint()) {
+                    LOG(ERROR) << "Create copyset use ucp endpoint, but "
+                                  "chunkserver info doesn't have ucp internal "
+                                  "endpoint, chunkserver id: "
+                               << id;
+                    return false;
+                }
+
+                std::string address = [&chunkserverInfo, useUcpConn]() {
+                    if (!useUcpConn) {
+                        return BuildPeerId(chunkserverInfo.GetHostIp(),
+                                           chunkserverInfo.GetPort());
+                    }
+
+                    const auto& ucpEndpoint =
+                            chunkserverInfo.GetUcpInternalEndpoint();
+                    return BuildPeerId(ucpEndpoint->ip, ucpEndpoint->port);
+                }();
 
                 ::curve::common::Peer *peer = copyset->add_peers();
                 peer->set_id(id);
-                peer->set_address(address);
+                peer->set_address(std::move(address));  
         }
     }
 
@@ -1209,16 +1227,11 @@ void TopologyServiceManager::CreateLogicalPool(
     timeval now;
     gettimeofday(&now, NULL);
     uint64_t cTime = now.tv_sec;
-    LogicalPool lPool(lPoolId,
-    request->logicalpoolname(),
-    pPool.GetId(),
-    request->type(),
-    rap,
-    userPolicy,
-    cTime,
-    false,
-    true);
+    LogicalPool lPool(lPoolId, request->logicalpoolname(), pPool.GetId(),
+                      request->type(), rap, userPolicy, cTime, false, true);
     lPool.SetStatus(status);
+    lPool.SetUcpConnection(
+            request->has_ucpconnection() ? request->ucpconnection() : false);
 
     int errcode = topology_->AddLogicalPool(lPool);
     if (kTopoErrCodeSuccess == errcode) {

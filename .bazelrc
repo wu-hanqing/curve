@@ -4,5 +4,5 @@ build --cxxopt -Wno-error=format-security
 build:gcc7-later --cxxopt -faligned-new
 build --incompatible_blacklisted_protos_requires_proto_info=false
 
-build --repo_env=CC=clang
+#build --repo_env=CC=clang --repo_env=CXX=clang++
 

@@ -68,6 +68,7 @@ const char kScatterWidth[] = "scatterwidth";
 const char kAllocStatus[] = "allocstatus";
 const char kAllocStatusAllow[] = "allow";
 const char kAllocStatusDeny[] = "deny";
+const char kUseUcp[] = "use_ucp";
 
 using ::curve::common::SplitString;
 
@@ -451,7 +452,24 @@ int CurvefsTools::InitLogicalPoolData() {
             LOG(WARNING) << "logicalpool not set, use default allow";
             lgPoolData.status = AllocateStatus::ALLOW;
         }
-        lgPoolDatas.emplace_back(lgPoolData);
+
+        if (lgPoolData[kUseUcp].isString()) {
+            auto value = lgPoolData[kUseUcp].asString();
+            std::transform(value.begin(), value.end(), [](char c) {
+                return tolower(c)
+            });
+
+            if (value == "true") {
+                lgPoolData.useUcp = true;
+            } else if (value == "false") {
+                lgPoolData.useUcp = false;
+            } else {
+                LOG(ERROR) << "use_ucp should be either 'true' or 'false'";
+                return -1;
+            }
+        }
+
+        lgPoolDatas.emplace_back(std::move(lgPoolData));
     }
     return 0;
 }

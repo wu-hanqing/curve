@@ -73,6 +73,7 @@ message LogicalPoolData {
     required string userPolicy = 9;
     required bool availFlag = 10;
     optional bool scanEnable = 11;
+    optional bool ucpConnection = 12;
 }
 
 message PhysicalPoolData {
@@ -129,6 +130,7 @@ message CopysetData {
     optional bool availFlag = 5;
     optional uint64 lastScanSec = 6;
     optional bool lastScanConsistent = 7;
+    optional bool ucpConnection = 8;
 }
 
 // rpc struct defination
@@ -378,6 +380,7 @@ message CreateLogicalPoolRequest {
     required bytes userPolicy = 6;                    //json body
     optional uint32 scatterWidth = 7;      //生成copyset依据的scatterWidth平均值
     optional AllocateStatus status = 8;
+    optional bool ucpConnection = 9;
 }
 
 message CreateLogicalPoolResponse {

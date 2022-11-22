@@ -177,6 +177,7 @@ bool LogicalPool::SerializeToString(std::string *value) const {
     data.set_userpolicy(this->GetUserPolicyJsonStr());
     data.set_availflag(avaliable_);
     data.set_scanenable(scanEnable_);
+    data.set_ucpconnection(ucpConn_);
     return data.SerializeToString(value);
 }
 
@@ -196,6 +197,7 @@ bool LogicalPool::ParseFromString(const std::string &value) {
     status_ = data.status();
     avaliable_ = data.availflag();
     scanEnable_ = data.has_scanenable() ? data.scanenable() : true;
+    ucpConn_ = data.has_ucpconnection() ? data.ucpconnection() : false;
     return ret;
 }
 
@@ -384,6 +386,7 @@ bool CopySetInfo::SerializeToString(std::string *value) const {
     data.set_availflag(available_);
     data.set_lastscansec(lastScanSec_);
     data.set_lastscanconsistent(lastScanConsistent_);
+    data.set_ucpconnection(ucpConn_);
     return data.SerializeToString(value);
 }
 
@@ -405,6 +408,8 @@ bool CopySetInfo::ParseFromString(const std::string &value) {
     lastScanSec_ = data.has_lastscansec() ? data.lastscansec() : 0;
     lastScanConsistent_ = data.has_lastscanconsistent() ?
                           data.lastscanconsistent() : true;
+    
+    ucpConn_ = data.has_ucpconnection() ? data.ucpconnection() : false;
     return ret;
 }
 
