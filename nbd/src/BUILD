@@ -38,32 +38,36 @@ COPTS = [
 
 cc_library(
     name = "curvenbd",
-    srcs = glob([
-        "*.h",
-        "*.cpp",
-        ],exclude = ["main.cpp"]
+    srcs = glob(
+        [
+            "*.h",
+            "*.cpp",
+        ],
+        exclude = ["main.cpp"],
     ),
-    deps = [
-        "//external:gflags",
-        "//external:glog",
-        "//nebd/src/part1:nebdclient",
-    ],
     copts = COPTS,
     linkopts = [
         "-lnl-3",
         "-lnl-genl-3",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        "//external:gflags",
+        "//external:glog",
+        "//nebd/src/part1:nebdclient",
+    ],
 )
 
 cc_binary(
     name = "curve-nbd",
-    srcs = glob([
-        "main.cpp"
-        ]
+    srcs = glob(
+        [
+            "main.cpp",
+        ],
     ),
-    deps = [
-        "//nbd/src:curvenbd"
-    ],
     copts = COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//nbd/src:curvenbd",
+    ],
 )

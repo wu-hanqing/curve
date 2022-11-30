@@ -22,6 +22,7 @@
 
 #include <gflags/gflags.h>
 #include <fcntl.h>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <list>
@@ -142,13 +143,57 @@ CSErrorCode CSDataStore::DeleteSnapshotChunkOrCorrectSn(
     return CSErrorCode::Success;
 }
 
+namespace {
+class DataStoreMetric_XXX {
+ public:
+    DataStoreMetric_XXX()
+        : io_count_("datastore_total_read_count"),
+          iops_("datastore_read_iops", &io_count_, 1),
+          io_bytes_("datastore_total_read_bytes"),
+          bps_("datastore_read_bps", &io_bytes_, 1),
+          error_count_("datastore_total_read_error_count"),
+          eps_("datastore_read_eps", &error_count_, 1),
+          latency_recorder_("datastore_read_latency"),
+          iosize_recorder_("datastore_iosize_latency") {}
+
+    void OnError() {
+        error_count_ << 1;
+    }
+
+    void OnSuccess(size_t size, uint64_t latency_us) {
+        io_count_ << 1;
+        io_bytes_ << size;
+
+        latency_recorder_ << latency_us;
+        iosize_recorder_ << size;
+    }
+
+ private:
+    bvar::Adder<uint64_t> io_count_;
+    bvar::PerSecond<bvar::Adder<uint64_t>> iops_;
+
+    bvar::Adder<uint64_t> io_bytes_;
+    bvar::PerSecond<bvar::Adder<uint64_t>> bps_;
+
+    bvar::Adder<uint64_t> error_count_;
+    bvar::PerSecond<bvar::Adder<uint64_t>> eps_;
+
+    bvar::LatencyRecorder latency_recorder_;
+    bvar::LatencyRecorder iosize_recorder_;
+};
+}  // namespace
+
 CSErrorCode CSDataStore::ReadChunk(ChunkID id,
                                    SequenceNum sn,
                                    char * buf,
                                    off_t offset,
                                    size_t length) {
+    static DataStoreMetric_XXX metric;
+    const uint64_t start_us = butil::gettimeofday_us();
+
     auto chunkFile = metaCache_.Get(id);
     if (chunkFile == nullptr) {
+        metric.OnError();
         return CSErrorCode::ChunkNotExistError;
     }
 
@@ -156,8 +201,10 @@ CSErrorCode CSDataStore::ReadChunk(ChunkID id,
     if (errorCode != CSErrorCode::Success) {
         LOG(WARNING) << "Read chunk file failed."
                      << "ChunkID = " << id;
+        metric.OnError();
         return errorCode;
     }
+    metric.OnSuccess(length, butil::gettimeofday_us() - start_us);
     return CSErrorCode::Success;
 }
 

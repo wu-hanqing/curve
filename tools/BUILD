@@ -15,14 +15,19 @@
 #
 
 cc_binary(
-        name = "curvefsTool",
-        srcs = ["curvefsTool.cpp",
-                "curvefsTool.h"],
-        deps = ["//proto:topology_cc_proto",
-                "//external:gflags",
-                "//external:json",
-                "//src/mds/common:mds_common",
-                "//src/common:curve_common",
-                "//external:glog",
-                "//external:brpc"]
-        )
+    name = "curvefsTool",
+    srcs = [
+        "curvefsTool.cpp",
+        "curvefsTool.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//external:brpc",
+        "//external:gflags",
+        "//external:glog",
+        "//external:json",
+        "//proto:topology_cc_proto",
+        "//src/common:curve_common",
+        "//src/mds/common:mds_common",
+    ],
+)

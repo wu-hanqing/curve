@@ -35,38 +35,42 @@ COPTS = [
     "-Wno-unused-variable",
     "-Wno-missing-field-initializers",
     "-Woverloaded-virtual",
-    "-Wnon-virtual-dtor"
+    "-Wnon-virtual-dtor",
 ]
 
 cc_library(
     name = "nebdserver",
-    srcs = glob([
-        "*.h",
-        "*.cpp",
-        ],exclude = ["main.cpp"]
+    srcs = glob(
+        [
+            "*.h",
+            "*.cpp",
+        ],
+        exclude = ["main.cpp"],
     ),
+    copts = COPTS,
     visibility = ["//visibility:public"],
     deps = [
-        "//external:glog",
         "//external:brpc",
-        "//external:json",
         "//external:gflags",
-        "//src/client:curve",
+        "//external:glog",
+        "//external:json",
+        "//nebd/proto:client_cc_proto",
         "//nebd/src/common:nebd_common",
-        "//nebd/proto:client_cc_proto"
+        "//src/client:curve",
     ],
-    copts = COPTS,
 )
 
 cc_binary(
     name = "nebd-server",
-    srcs = glob([
-        "main.cpp",
-        ]
+    srcs = glob(
+        [
+            "main.cpp",
+        ],
     ),
+    copts = COPTS,
+    linkopts = ["-Wl,-rpath=/usr/lib/nebd"],
+    visibility = ["//visibility:public"],
     deps = [
         "//nebd/src/part2:nebdserver",
     ],
-    copts = COPTS,
-    linkopts = ["-Wl,-rpath=/usr/lib/nebd"],
 )

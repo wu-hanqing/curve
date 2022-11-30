@@ -104,3 +104,5 @@ curvefs/docker/base/*
 curvefs/BUILD_MODE
 
 .BUILD_MODE
+
+.cache
