@@ -108,7 +108,8 @@ local_repository(
     # commit = "1b9e00641cbec1c8803da6a1f7f555398c954cb0",
     # patches = ["//:thirdparties/brpc/brpc.patch"],
     # patch_args = ["-p1"],
-    path = "/home/wuhanqing/work/curve-brpc",
+    # path = "/home/wuhanqing/work/curve-brpc",
+    path = "/home/wuhanqing/work/curve-brpc-rebased",
 )
 
 bind(
@@ -193,3 +194,10 @@ new_http_archive(
     strip_prefix = "aws-checksums-0.1.5",
     build_file = "//:thirdparties/aws/aws-checksums.BUILD",
 )
+
+new_local_repository(
+    name = "ucx",
+    path = "/home/wuhanqing/ucx",
+    build_file = "//:bazel/ucx.BUILD",
+)
+
