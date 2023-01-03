@@ -41,6 +41,10 @@
 #include "src/mds/common/mds_define.h"
 #include "src/common/string_util.h"
 #include "src/common/configuration.h"
+#include "src/mds/topology/topology_item.h"
+#include "src/mds/topology/topology_storge_etcd.h"
+#include "src/kvstorageclient/etcd_client.h"
+#include "src/mds/topology/topology_storage_codec.h"
 
 
 namespace curve {
@@ -87,6 +91,9 @@ struct CurvePoolsetData{
 
 class CurvefsTools {
  public:
+    // class TopologyStorageEtcd;
+    // class Poolset;
+    // class PhysicalPool;
     CurvefsTools() {}
     ~CurvefsTools() {}
 
@@ -113,6 +120,7 @@ class CurvefsTools {
     int InitPoolsetData();
     int ScanCluster();
     int ScanPoolset();
+    void InitEtcd();
 
     int CreatePoolset();
     int ScanLogicalPool();
@@ -154,6 +162,12 @@ class CurvefsTools {
     std::list<PoolIdType> physicalPoolToDel;
     std::list<ZoneIdType> zoneToDel;
     std::list<ServerIdType> serverToDel;
+
+    std::unordered_map<std::string, PoolsetType> poolsetType_;
+    std::unordered_map<PoolsetIdType, Poolset> poolsetMap_;
+    std::unordered_map<PoolIdType, PhysicalPool> physicalPoolMap_;
+    std::shared_ptr<TopologyStorageEtcd> etcdStorage_;
+    std::shared_ptr<EtcdClientImp> etcdClient_;
 
     std::vector<std::string> mdsAddressStr_;
     int mdsAddressIndex_;

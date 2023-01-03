@@ -25,6 +25,8 @@ cc_binary(
                 "//external:json",
                 "//src/mds/common:mds_common",
                 "//src/common:curve_common",
+                "//src/mds/topology:topology",
+                "//src/kvstorageclient:kvstorage_client",
                 "//external:glog",
                 "//external:brpc"],
         copts = CURVE_DEFAULT_COPTS,

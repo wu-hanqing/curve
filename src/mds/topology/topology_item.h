@@ -235,7 +235,7 @@ class Poolset{
     Poolset()
         :id_(UNINTIALIZE_ID),
             name_(""),
-            type_(PoolsetType::SSD),
+            type_(UNKNOWN),
             desc_("") {}
     Poolset(PoolsetIdType id,
             const std::string &name,
@@ -316,9 +316,9 @@ class PhysicalPool {
                  const std::string &desc)
         : id_(id),
           name_(name),
+          poolsetId_(UNINTIALIZE_ID),
           desc_(desc),
-          diskCapacity_(0),
-          poolsetId_(UNINTIALIZE_ID) {}
+          diskCapacity_(0) {}
 
     PoolIdType GetId() const {
         return id_;

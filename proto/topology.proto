@@ -60,6 +60,7 @@ enum PoolsetType{
     SSD = 0;
     HDD = 1;
     NVME = 2;
+    UNKNOWN = 3;
 }
 
 // etcd struct defination

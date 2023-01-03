@@ -23,6 +23,7 @@
 #include "tools/curvefsTool.h"
 #include <unordered_map>
 #include <utility>
+#include "src/mds/topology/topology_item.h"
 
 DEFINE_string(mds_addr, "127.0.0.1:6666",
     "mds ip and port list, separated by \",\"");
@@ -358,7 +359,7 @@ int CurvefsTools::InitPoolsetData() {
             LOG(ERROR) << "poolset type is invalid";
             return -1;
         }
-
+        poolsetType_[poolsetData.poolsetName] = poolsetData.type;
         poolsetDatas.emplace_back(std::move(poolsetData));
     }
     return 0;
@@ -1331,6 +1332,13 @@ int CurvefsTools::ScanPoolset() {
     return 0;
 }
 
+void CurvefsTools::InitEtcd(){
+    etcdClient_ = std::make_shared<EtcdClientImp>();
+    auto codec = std::make_shared<TopologyStorageCodec>();
+    etcdStorage_ = std::make_shared<TopologyStorageEtcd>(etcdClient_, codec);
+    return;
+}
+
 int CurvefsTools::UpgradePhysicalPools() {
     int ret = ReadClusterMap();
     if (ret < 0) {
@@ -1348,56 +1356,52 @@ int CurvefsTools::UpgradePhysicalPools() {
     if (ret < 0) {
         return DealFailedRet(ret, "init poolset data");
     }
-    ret = ScanPoolset();
-    if (ret < 0) {
-        return DealFailedRet(ret, "scan poolset");
+    InitEtcd();
+    PoolsetIdType maxPoolsetId;
+    if (!etcdStorage_->LoadPoolset(&poolsetMap_, &maxPoolsetId)) {
+        LOG(ERROR) << "[UpgradePhysicalPools], LoadPoolset fail.";
+        return -1;
     }
-    ret = CreatePoolset();
-    if (ret < 0) {
-        return DealFailedRet(ret, "create poolset");
+    PoolIdType maxPhysicalPoolId;
+    if (!etcdStorage_->LoadPhysicalPool(&physicalPoolMap_, &maxPhysicalPoolId)) {
+        LOG(ERROR) << "[UpgradePhysicalPools], LoadPhysicalPool fail.";
+        return -1;
     }
-
-    std::list<PhysicalPoolInfo> physicalPoolInfos;
-    ret = ListPhysicalPool(&physicalPoolInfos);
-    if (ret < 0) {
-        return ret;
-    }
-    for (auto it = physicalPoolInfos.begin();
-            it != physicalPoolInfos.end(); it++) {
-        if (it->poolsetname() == "") {
-            TopologyService_Stub stub(&channel_);
-            UpgradePhysicalPoolRequest request;
-            request.set_physicalpoolname(it->physicalpoolname());
-            request.set_poolsetname(dic[it->physicalpoolname()]);
-            LOG(INFO) << "UpgradePhysicalPool, phyPoolName is " <<
-            it->physicalpoolname();
-            LOG(INFO) << "UpgradePhysicalPool, poolsetName is " <<
-            request.poolsetname();
-            UpgradePhysicalPoolResponse response;
-            brpc::Controller cntl;
-            cntl.set_timeout_ms(FLAGS_rpcTimeOutMs);
-            cntl.set_log_id(1);
-
-            LOG(INFO) << "UpgradePhysicalPool, send request: "
-                  << request.DebugString();
-
-            stub.UpgradePhysicalPool(&cntl, &request, &response, nullptr);
-
-            if (cntl.Failed()) {
-            LOG(WARNING) << "send rpc get cntl Failed, error context:"
-                       << cntl.ErrorText();
-            return kRetCodeRedirectMds;
-            }
-            if (response.statuscode() != kTopoErrCodeSuccess) {
-                LOG(ERROR) << "UpgradePhysicalPool Rpc response fail. "
-                       << "Message is :"
-                       << response.DebugString();
-                return response.statuscode();
-            } else {
-                LOG(INFO) << "Received UpgradePhysicalPool response success, "
-                      << response.DebugString();
+    for(auto it1 = physicalPoolMap_.begin(); it1 != physicalPoolMap_.end(); it1++){
+        PhysicalPool phyPool = it1->second;
+        if (phyPool.GetPoolsetId() != UNINTIALIZE_ID) {
+            continue;
+        }
+        std::string phyPoolName = phyPool.GetName();
+        std::string poolsetName = dic[phyPoolName];
+        bool pstExist = false;
+        for(auto it2 = poolsetMap_.begin(); it2 != poolsetMap_.end(); it2++) {
+            Poolset poolset = it2->second;
+            if(poolset.GetName() == poolsetName) {
+                pstExist = true;
+                PoolsetIdType pstId = poolset.GetId();
+                phyPool.SetPoolsetId(pstId);
+                if(!etcdStorage_->StoragePhysicalPool(phyPool)) {
+                    LOG(ERROR) << "[UpgradePhysicalPools], StoragePhysicalPool fail.";
+                    return -1;
+                }
+                break;
             }
         }
+        if (!pstExist) {
+            PoolsetIdType pstId = ++maxPoolsetId;
+            Poolset pst(pstId, poolsetName, poolsetType_[poolsetName], "");
+            if(!etcdStorage_->StoragePoolset(pst)) {
+                LOG(ERROR) << "[UpgradePhysicalPools], StoragePoolset fail.";
+                return -1;
+            }
+            phyPool.SetPoolsetId(pstId);
+            if(!etcdStorage_->StoragePhysicalPool(phyPool)) {
+                    LOG(ERROR) << "[UpgradePhysicalPools], StoragePhysicalPool fail.";
+                    return -1;
+            }   
+        }
+
     }
     return 0;
 }
