@@ -165,6 +165,24 @@ ssize_t writev_dispatch(int fd, const struct iovec *vector, int nvec) {
     return writev(fd, vector, nvec);
 }
 
+// ssize_t writev_dispatch_wrapper(int fd, const struct iovec* iov, int nvec) {
+
+// }
+
+// ssize_t readv_dispatch_wrapper(int fd, const struct iovec* iov, int nvec) {
+
+// }
+
+// ssize_t pwritev_dispatch_wrapper(int fd,
+//                                  const struct iovec* iov,
+//                                  int nvec,
+//                                  off_t offset) {}
+
+// ssize_t preadv_dispatch_wrapper(int fd,
+//                                  const struct iovec* iov,
+//                                  int nvec,
+//                                  off_t offset) {}
+
 void HookIOBufIOFuncs() {
     butil::iobuf::iobuf_io_funcs iofuncs;
     iofuncs.iof_preadv = preadv_dispatch;
