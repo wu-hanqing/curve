@@ -45,6 +45,7 @@
 #include <braft/fsync.h>
 #include "src/chunkserver/raftlog/curve_segment.h"
 #include "src/chunkserver/raftlog/define.h"
+#include "src/chunkserver/raftlog/coroutine_io_proxy.h"
 
 namespace curve {
 namespace chunkserver {
@@ -52,6 +53,13 @@ namespace chunkserver {
 DEFINE_bool(raftSyncSegments, true, "call fsync when a segment is closed");
 DEFINE_bool(enableWalDirectWrite, true, "enable wal direct write or not");
 DEFINE_uint32(walAlignSize, 4096, "wal align size to write");
+
+namespace {
+int fsync_wrapper(int fd) {
+    scoped_refptr<IOTask> task = IOTask::Create(fd, IOTask::SYNC);
+    return task->Wait();
+}
+}
 
 int CurveSegment::create() {
     if (!_is_open) {
@@ -79,8 +87,8 @@ int CurveSegment::create() {
                    << strerror(errno);
         return -1;
     }
-    res = ::lseek(_fd, _meta_page_size, SEEK_SET);
-    if (res != _meta_page_size) {
+    off_t off = ::lseek(_fd, _meta_page_size, SEEK_SET);
+    if (off != _meta_page_size) {
         LOG(ERROR) << "lseek fail! error: " << strerror(errno);
         return -1;
     }
@@ -228,7 +236,7 @@ int CurveSegment::load(braft::ConfigurationManager* configuration_manager) {
 
 int CurveSegment::_load_meta() {
     char* metaPage = new char[_meta_page_size];
-    int res = ::pread(_fd, metaPage, _meta_page_size, 0);
+    ssize_t res = ::pread(_fd, metaPage, _meta_page_size, 0);
     if (res != _meta_page_size) {
         delete metaPage;
         return -1;
@@ -433,12 +441,32 @@ int CurveSegment::append(const braft::LogEntry* entry) {
                   _checksum_type, write_buf, kEntryHeaderSize - 4));
     if (FLAGS_enableWalDirectWrite) {
         data.copy_to(write_buf + kEntryHeaderSize, real_length);
-        int ret = ::pwrite(_direct_fd, write_buf, to_write, _meta.bytes);
-        free(write_buf);
-        if (ret != to_write) {
-            LOG(ERROR) << "Fail to write directly to fd=" << _direct_fd;
-            return -1;
+
+        struct iovec iov[1];
+        iov[0].iov_base = write_buf;
+        iov[0].iov_len = to_write;
+
+        while (true) {
+            scoped_refptr<IOTask> task = IOTask::Create(
+                    _direct_fd, IOTask::WRITE, _meta.bytes, 1, iov);
+            ssize_t nc = task->Wait();
+            if (nc != (ssize_t)to_write) {
+                if (task->error == EINTR) {
+                    continue;
+                }
+
+                LOG(ERROR) << "Fail to write directly to fd=" << _direct_fd
+                           << ", buf=" << write_buf << ", size=" << to_write
+                           << ", offset=" << _meta.bytes
+                           << ", error=" << berror(task->error);
+                free(write_buf);
+                return -1;
+            }
+
+            break;
         }
+
+        free(write_buf);
     } else {
         butil::IOBuf header;
         header.append(write_buf, kEntryHeaderSize);
@@ -476,18 +504,32 @@ int CurveSegment::_update_meta_page() {
         << "posix_memalign WAL meta page failed " << strerror(ret);
     memset(metaPage, 0, _meta_page_size);
     memcpy(metaPage, &_meta.bytes, sizeof(_meta.bytes));
-    if (FLAGS_enableWalDirectWrite) {
-        ret = ::pwrite(_direct_fd, metaPage, _meta_page_size, 0);
-    } else {
-        ret = ::pwrite(_fd, metaPage, _meta_page_size, 0);
+
+    int fd = FLAGS_enableWalDirectWrite ? _direct_fd : _fd;
+    struct iovec iov[1];
+    iov[0].iov_base = metaPage;
+    iov[0].iov_len = _meta_page_size;
+
+    while (true) {
+        scoped_refptr<IOTask> task =
+                IOTask::Create(fd, IOTask::WRITE, 0, 1, iov);
+        ssize_t nc = task->Wait();
+        if (nc != _meta_page_size) {
+            if (task->error == EINTR) {
+                continue;
+            }
+
+            LOG(ERROR) << "Fail to write meta page into fd=" << fd
+                       << ", path: " << _path
+                       << ", error: " << berror(task->error);
+            free(metaPage);
+            return -1;
+        }
+
+        break;
     }
+
     free(metaPage);
-    if (ret != _meta_page_size) {
-        LOG(ERROR) << "Fail to write meta page into fd="
-                   << (FLAGS_enableWalDirectWrite ? _direct_fd : _fd)
-                   << ", path: " << _path << berror();
-        return -1;
-    }
     return 0;
 }
 
@@ -603,8 +645,8 @@ int CurveSegment::close(bool will_sync) {
     int ret = 0;
     if (_last_index > _first_index) {
         if (FLAGS_raftSyncSegments && will_sync &&
-                                !FLAGS_enableWalDirectWrite) {
-            ret = braft::raft_fsync(_fd);
+            !FLAGS_enableWalDirectWrite) {
+            ret = fsync_wrapper(_fd);
         }
     }
     if (ret == 0) {
@@ -623,9 +665,9 @@ int CurveSegment::close(bool will_sync) {
 int CurveSegment::sync(bool will_sync) {
     if (_last_index > _first_index) {
         // CHECK(_is_open);
-        if (!FLAGS_enableWalDirectWrite && braft::FLAGS_raft_sync
-                                            && will_sync) {
-            return braft::raft_fsync(_fd);
+        if (!FLAGS_enableWalDirectWrite && braft::FLAGS_raft_sync &&
+            will_sync) {
+            return fsync_wrapper(_fd);
         } else {
             return 0;
         }
@@ -635,7 +677,6 @@ int CurveSegment::sync(bool will_sync) {
 }
 
 int CurveSegment::unlink() {
-    int ret = 0;
     std::string path(_path);
     if (_is_open) {
         butil::string_appendf(&path, "/" CURVE_SEGMENT_OPEN_PATTERN,

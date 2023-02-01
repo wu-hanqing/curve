@@ -259,3 +259,13 @@ http_archive(
 )
 load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
 hedron_compile_commands_setup()
+
+new_http_archive(
+    name = "com_github_concurrentqueue",
+    urls = [
+        "https://github.com/cameron314/concurrentqueue/archive/refs/tags/v1.0.3.tar.gz",
+    ],
+    sha256 = "eb37336bf9ae59aca7b954db3350d9b30d1cab24b96c7676f36040aa76e915e8",
+    strip_prefix = "concurrentqueue-1.0.3",
+    build_file = "//:thirdparties/concurrentqueue.BUILD",
+)

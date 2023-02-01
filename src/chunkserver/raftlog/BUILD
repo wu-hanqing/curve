@@ -34,5 +34,6 @@ cc_library(
         "//external:glog",
         "//external:protobuf",
         "//src/chunkserver/datastore:chunkserver_datastore",
+        "@com_github_concurrentqueue//:concurrentqueue",
     ],
 )
