@@ -14,23 +14,25 @@
 #  limitations under the License.
 #
 
-load("//:copts.bzl", "BASE_FLAGS", "CURVE_DEFAULT_COPTS")
+load("//:copts.bzl", "CURVE_DEFAULT_COPTS")
+
+COPTS = CURVE_DEFAULT_COPTS + [
+    "-I/usr/include/python2.7",
+    "-Wno-error=stringop-truncation",
+    "-Wno-error=cast-function-type",
+]
 
 cc_binary(
-    name = "curvefsTool",
-    srcs = [
-        "curvefsTool.cpp",
-        "curvefsTool.h",
-    ],
-    copts = CURVE_DEFAULT_COPTS,
-    deps = [
-        "//external:brpc",
-        "//external:gflags",
-        "//external:glog",
-        "//external:json",
-        "//proto:topology_cc_proto",
-        "//src/common:curve_common",
-        "//src/mds/common:mds_common",
-    ],
+    name = "_curvefs.so",
+    srcs = glob([
+        "*.cxx",
+        "*.cpp",
+        "*.h",
+    ]),
+    copts = COPTS,
+    linkshared = True,
     visibility = ["//visibility:public"],
+    deps = [
+        "//src/client:curve_client",
+    ],
 )

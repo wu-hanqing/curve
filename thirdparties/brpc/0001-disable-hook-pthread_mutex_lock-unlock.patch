@@ -1,0 +1,46 @@
+From 382fb2c2e2d11a8a6c92e24ac1575554ceb1a2a1 Mon Sep 17 00:00:00 2001
+From: Hanqing Wu <wuhanqing@corp.netease.com>
+Date: Tue, 7 Feb 2023 10:29:07 +0800
+Subject: [PATCH] disable hook pthread_mutex_lock/unlock
+
+---
+ src/bthread/mutex.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/bthread/mutex.cpp b/src/bthread/mutex.cpp
+index 0de00b27..aa7f7b14 100644
+--- a/src/bthread/mutex.cpp
++++ b/src/bthread/mutex.cpp
+@@ -402,6 +402,7 @@ static pthread_once_t init_sys_mutex_lock_once = PTHREAD_ONCE_INIT;
+ // Call _dl_sym which is a private function in glibc to workaround the malloc
+ // causing deadlock temporarily. This fix is hardly portable.
+ static void init_sys_mutex_lock() {
++#if 0
+ #if defined(OS_LINUX)
+     // TODO: may need dlvsym when GLIBC has multiple versions of a same symbol.
+     // http://blog.fesnel.com/blog/2009/08/25/preloading-with-multiple-symbol-versions
+@@ -412,6 +413,7 @@ static void init_sys_mutex_lock() {
+     sys_pthread_mutex_lock = (MutexOp)dlsym(RTLD_NEXT, "pthread_mutex_lock");
+     sys_pthread_mutex_unlock = (MutexOp)dlsym(RTLD_NEXT, "pthread_mutex_unlock");
+ #endif
++#endif
+ }
+ 
+ // Make sure pthread functions are ready before main().
+@@ -805,11 +807,13 @@ int bthread_mutex_unlock(bthread_mutex_t* m) {
+     return 0;
+ }
+ 
++#if 0
+ int pthread_mutex_lock (pthread_mutex_t *__mutex) {
+     return bthread::pthread_mutex_lock_impl(__mutex);
+ }
+ int pthread_mutex_unlock (pthread_mutex_t *__mutex) {
+     return bthread::pthread_mutex_unlock_impl(__mutex);
+ }
++#endif
+ 
+ }  // extern "C"
+-- 
+2.37.2
+

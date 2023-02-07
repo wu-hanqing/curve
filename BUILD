@@ -37,3 +37,52 @@ config_setting(
         "@bazel_tools//tools/cpp:compiler": "clang",
     },
 )
+
+config_setting(
+    name = "curvebs-sdk",
+    define_values = {
+        "curvebs-sdk": "true",
+    },
+)
+
+filegroup(
+    name = "curvebs-exe",
+    srcs = [
+        "//src/chunkserver",
+        "//src/mds/main:curvemds",
+        "//src/snapshotcloneserver",
+        "//src/tools:curve_chunkserver_tool",
+        "//src/tools:curve_format",
+        "//src/tools:curve_tool",
+        "//tools:curvefsTool",
+        "//nebd/src/part2:nebd-server",
+        "//nbd/src:curve-nbd",
+    ],
+)
+
+filegroup(
+    name = "curvebs-sdk-prepare",
+    srcs = [
+        "//src/common:curve_common",
+        "//src/common:curve_auth",
+        "//src/common/concurrent:curve_concurrent",
+        "//proto:nameserver2_cc_proto",
+        "//proto:topology_cc_proto",
+        "//proto:chunkserver-cc-protos",
+        "//proto:common_cc_proto",
+        "@com_github_brpc_brpc//:brpc",
+        "@com_github_brpc_brpc//:butil",
+        "@com_github_brpc_brpc//:bvar",
+        "@com_github_brpc_brpc//:bthread",
+        "@com_github_brpc_brpc//:json2pb",
+        "@com_github_brpc_brpc//:mcpack2pb",
+        "@com_github_brpc_brpc//:cc_brpc_idl_options_proto",
+        "@com_github_brpc_brpc//:cc_brpc_internal_proto",
+        "@com_google_protobuf//:protobuf",
+        "@com_google_protobuf//:protobuf_lite",
+        "@com_google_protobuf//:protoc_lib",
+        "@com_github_google_leveldb//:leveldb",
+        "@com_github_google_glog//:glog",
+        "@com_github_gflags_gflags//:gflags",
+    ]
+)

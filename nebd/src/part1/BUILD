@@ -34,4 +34,13 @@ cc_library(
         "//nebd/proto:client_cc_proto",
         "//nebd/src/common:nebd_common",
     ],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "libnebd_client.so",
+    deps = [
+        ":nebdclient",
+    ],
+    linkshared = True,
 )

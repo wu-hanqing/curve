@@ -21,6 +21,7 @@ cc_binary(
     srcs = [
         "curve_format_main.cpp",
     ],
+    visibility = ["//visibility:public"],
     copts = CURVE_DEFAULT_COPTS,
     deps = [
         "//external:braft",

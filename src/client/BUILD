@@ -18,72 +18,46 @@
 
 load("//:copts.bzl", "CURVE_DEFAULT_COPTS")
 
+LINKOPTS = select({
+    "//:curvebs-sdk": [
+        "-Wl,-rpath=/usr/lib/curve",
+        "-Wl,-rpath=$$ORIGIN/curve",
+        "-Wl,-z,origin",
+        "-lbrpc",
+        "-lbthread",
+        "-lbvar",
+        "-lbutil",
+        "-ljson2pb",
+        "-lmcpack2pb",
+        "-lprotoc_lib",
+        "-lcc_brpc_internal_proto",
+        "-lcc_brpc_idl_options_proto",
+        "-lleveldb",
+        "-lglog",
+        "-lgflags",
+        "-lprotobuf",
+        "-lprotobuf_lite",
+        "-lcurve_common",
+        "-lcurve_auth",
+        "-lcurve_concurrent",
+        "-lnameserver2_proto",
+        "-ltopology_proto",
+        "-lchunkserver-protos",
+        "-lcommon_proto",
+    ],
+    "//conditions:default": [],
+})
+
 cc_library(
     name = "curve_client",
     srcs = glob(
         ["*.cpp"],
-        exclude = ["libcurve.cpp"],
     ),
     hdrs = glob(
         ["*h"],
-        exclude = ["libcurve.h"],
     ),
     copts = CURVE_DEFAULT_COPTS,
-    visibility = ["//visibility:public"],
-    deps = [
-        "//external:gflags",
-        "//external:glog",
-        "//external:leveldb",
-        "//external:brpc",
-        "//external:protobuf",
-        "//src/common:curve_common",
-        "//src/common:curve_auth",
-        "//include/client:include_client",
-        "//include:include-common",
-        "//proto:nameserver2_cc_proto",
-        "//proto:topology_cc_proto",
-        "//proto:chunkserver-cc-protos",
-    ],
-)
-
-cc_library(
-    name = "cbd",
-    srcs = glob([
-        "libcbd_ext4.cpp",
-        "libcbd_libcurve.cpp",
-    ]),
-    hdrs = glob([
-        "libcbd.h",
-    ]),
-    copts = CURVE_DEFAULT_COPTS,
-    linkopts = [
-        "-lrt",
-        "-lssl",
-        "-lcrypto",
-        "-ldl",
-        "-lz",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//external:brpc",
-        "//external:bthread",
-        "//external:butil",
-        "//external:bvar",
-        "//external:gflags",
-        "//external:protobuf",
-        "//proto:chunkserver-cc-protos",
-        "//src/client:curve_client",
-        "//src/common:curve_common",
-        "//include/client:include_client",
-    ],
-)
-
-cc_library(
-    name = "curve",
-    srcs = glob([
-        "libcurve_client.cpp",
-    ]),
-    copts = CURVE_DEFAULT_COPTS,
+    linkopts = LINKOPTS,
     visibility = ["//visibility:public"],
     deps = [
         "//external:brpc",
@@ -96,7 +70,6 @@ cc_library(
         "//proto:chunkserver-cc-protos",
         "//proto:nameserver2_cc_proto",
         "//proto:topology_cc_proto",
-        "//src/client:curve_client",
         "//src/common:curve_auth",
         "//src/common:curve_common",
     ],

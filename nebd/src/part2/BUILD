@@ -34,7 +34,7 @@ cc_library(
         "//external:json",
         "//nebd/proto:client_cc_proto",
         "//nebd/src/common:nebd_common",
-        "//src/client:curve",
+        "//src/client:curve_client",
     ],
 )
 
@@ -45,7 +45,8 @@ cc_binary(
     ],
     copts = CURVE_DEFAULT_COPTS,
     linkopts = ["-Wl,-rpath=/usr/lib/nebd"],
+    visibility = ["//visibility:public"],
     deps = [
-        "//nebd/src/part2:nebdserver",
+        ":nebdserver",
     ],
 )

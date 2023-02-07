@@ -19,8 +19,6 @@
 dir=`pwd`
 #step1 清除生成的目录和文件
 bazel clean
-rm -rf curvefs_python/BUILD
-rm -rf curvefs_python/tmplib/
 rm -rf curvesnapshot_python/BUILD
 rm -rf curvesnapshot_python/tmplib/
 rm -rf *.deb
@@ -59,70 +57,20 @@ function create_python_wheel() {
     curdir=$(pwd)
     basedir="build/curvefs_${PYTHON_VER}/"
 
-    mkdir -p ${basedir}/tmplib
     mkdir -p ${basedir}/curvefs
 
-    cp ./curvefs_python/tmplib/* ${basedir}/tmplib
     cp ./curvefs_python/setup.py ${basedir}/setup.py
     cp ./curvefs_python/__init__.py ${basedir}/curvefs
     cp ./curvefs_python/curvefs.py ${basedir}/curvefs
-    cp ./bazel-bin/curvefs_python/libcurvefs.so ${basedir}/curvefs/_curvefs.so
+    cp ./bazel-bin/curvefs_python/_curvefs.so ${basedir}/curvefs/_curvefs.so
 
     cd ${basedir}
     sed -i "s/version-anchor/${curve_version}/g" setup.py
-
-    deps=$(ldd curvefs/_curvefs.so | awk '{ print $1 }' | sed '/^$/d')
-    for i in $(find tmplib/ -name "lib*so"); do
-        basename=$(basename $i)
-        if [[ $deps =~ $basename ]]; then
-            echo $i
-            cp $i curvefs
-        fi
-    done
 
     ${1} setup.py bdist_wheel
     cp dist/*whl ${curdir}
 
     cd ${curdir}
-}
-
-function build_curvefs_python() {
-    for bin in "/usr/bin/python3" "/usr/bin/python2"; do
-        if [ ! -f ${bin} ]; then
-            echo "${bin} not exist"
-            continue
-        fi
-
-        bash ./curvefs_python/configure.sh $(basename ${bin})
-
-        if [ $? -ne 0 ]; then
-            echo "configure for ${bin} failed"
-            continue
-        fi
-
-        # backup and recover python depends shared libraries
-        mkdir -p ./build/py_deps_libs
-        cp ./curvefs_python/tmplib/* ./build/py_deps_libs/
-        cp ./build/py_deps_libs/* ./curvefs_python/tmplib/
-
-        rm -rf ./bazel-bin/curvefs_python
-
-        if [ "$1" = "release" ]; then
-            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --copt -O2 -s \
-                --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
-                --copt -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
-                -L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
-                ${bazelflags}
-        else
-            bazel build curvefs_python:curvefs --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s \
-                --define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
-                --copt -Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
-                -L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
-                ${bazelflags}
-        fi
-
-        create_python_wheel ${bin}
-    done
 }
 
 #step3 执行编译
@@ -178,71 +126,48 @@ cd ${dir}
 cp ${dir}/thirdparties/etcdclient/libetcdclient.h ${dir}/include/etcdclient/etcdclient.h
 if [ `gcc -dumpversion | awk -F'.' '{print $1}'` -le 6 ]
 then
-    bazelflags=''
+    BAZEL_EXTRA_FLAGS=''
 else
-    bazelflags='--copt -faligned-new'
+    BAZEL_EXTRA_FLAGS='--config gcc7-later'
 fi
 
-if [ "$1" = "debug" ]
-then
-bazel build ... --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s --define=with_glog=true \
---define=libunwind=true --copt -DGFLAGS_NS=google --copt \
--Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --copt -DCURVEVERSION=${curve_version} \
---linkopt -L/usr/local/lib ${bazelflags}
-if [ $? -ne 0 ]
-then
-    echo "build phase1 failed"
-    exit
-fi
-bash ./curvefs_python/configure.sh python2
-if [ $? -ne 0 ]
-then
-    echo "configure failed"
-    exit
-fi
-bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --compilation_mode=dbg -s \
---define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
---copt \
--Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
--L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
---linkopt -L/usr/local/lib ${bazelflags}
-if [ $? -ne 0 ]
-then
-    echo "build phase2 failed"
-    exit
-fi
+if [ "$1" = "debug" ]; then
+    BAZEL_BUILD_MODE=dbg
 else
-bazel build ... --copt -DHAVE_ZLIB=1 --copt -O2 -s --define=with_glog=true \
---define=libunwind=true --copt -DGFLAGS_NS=google --copt \
--Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --copt -DCURVEVERSION=${curve_version} \
---linkopt -L/usr/local/lib ${bazelflags}
-if [ $? -ne 0 ]
-then
-    echo "build phase1 failed"
-    exit
+    BAZEL_BUILD_MODE=opt
 fi
-bash ./curvefs_python/configure.sh python2
-if [ $? -ne 0 ]
-then
-    echo "configure failed"
-    exit
-fi
-bazel build curvefs_python:curvefs  --copt -DHAVE_ZLIB=1 --copt -O2 -s \
---define=with_glog=true --define=libunwind=true --copt -DGFLAGS_NS=google \
---copt \
--Wno-error=format-security --copt -DUSE_BTHREAD_MUTEX --linkopt \
--L${dir}/curvefs_python/tmplib/ --copt -DCURVEVERSION=${curve_version} \
---linkopt -L/usr/local/lib ${bazelflags}
-if [ $? -ne 0 ]
-then
-    echo "build phase2 failed"
-    exit
-fi
-fi
-echo "end compile"
+
+set -ex
+
+BAZEL_FLAGS="-c ${BAZEL_BUILD_MODE} --copt -DCURVEVERSION=${curve_version} ${BAZEL_EXTRA_FLAGS}"
+
+## build curvebs executable
+bazel build //:curvebs-exe ${BAZEL_FLAGS}
+
+## build curvebs-sdk
+### build dependent libraries
+bazel build //:curvebs-sdk-prepare ${BAZEL_FLAGS}
+
+### copy curvebs-sdk dependencies
+mkdir -p build/curvebs-sdk-prepare
+find bazel-bin/ -name "*.so" | xargs -i cp {} build/curvebs-sdk-prepare
+
+### build libcurve_client.so
+bazel build //src/client:curve_client ${BAZEL_FLAGS} --define=curvebs-sdk=true \
+    --linkopt -L`pwd`/build/curvebs-sdk-prepare
+
+## build libnebd_client.so
+bazel build //nebd/src/part1:libnebd_client.so ${BAZEL_FLAGS}
+
+## build curvebs python wrapper
+bazel build //curvefs_python:_curvefs.so ${BAZEL_FLAGS}
 
 #step4 创建临时目录，拷贝二进制、lib库和配置模板
-mkdir build
+
+set +e
+set -x
+
+mkdir -p build
 if [ $? -ne 0 ]
 then
     exit
@@ -400,7 +325,7 @@ if [ $? -ne 0 ]
 then
     exit
 fi
-mkdir -p build/curve-sdk/usr/lib
+mkdir -p build/curve-sdk/usr/lib/curve
 if [ $? -ne 0 ]
 then
     exit
@@ -410,7 +335,7 @@ if [ $? -ne 0 ]
 then
     exit
 fi
-cp ./bazel-bin/curvefs_python/libcurvefs.so \
+cp ./bazel-bin/curvefs_python/_curvefs.so \
 build/curve-sdk/usr/curvefs/_curvefs.so
 if [ $? -ne 0 ]
 then
@@ -442,12 +367,12 @@ then
     exit
 fi
 chmod a+x build/curve-sdk/usr/bin/curve
-cp curvefs_python/tmplib/* build/curve-sdk/usr/lib/
+cp build/curvebs-sdk-prepare/*.so build/curve-sdk/usr/lib/curve
 if [ $? -ne 0 ]
 then
     exit
 fi
-cp ./bazel-bin/src/client/libcurve.so build/curve-sdk/usr/lib
+cp ./bazel-bin/src/client/libcurve_client.so build/curve-sdk/usr/lib/
 cp include/client/libcurve.h build/curve-sdk/usr/include
 cp include/client/libcbd.h build/curve-sdk/usr/include
 cp include/client/libcurve_define.h build/curve-sdk/usr/include
@@ -482,40 +407,6 @@ then
     exit
 fi
 
-mkdir -p build/curve-nginx/etc/curve/nginx/app/etc
-if [ $? -ne 0 ]
-then
-    exit
-fi
-cp -r ./curve-snapshotcloneserver-nginx/app/lib \
-build/curve-nginx/etc/curve/nginx/app
-if [ $? -ne 0 ]
-then
-    exit
-fi
-cp -r ./curve-snapshotcloneserver-nginx/app/src \
-build/curve-nginx/etc/curve/nginx/app
-if [ $? -ne 0 ]
-then
-    exit
-fi
-mkdir -p build/curve-nginx/etc/curve/nginx/conf
-if [ $? -ne 0 ]
-then
-    exit
-fi
-cp ./curve-snapshotcloneserver-nginx/conf/mime.types \
-build/curve-nginx/etc/curve/nginx/conf/
-if [ $? -ne 0 ]
-then
-    exit
-fi
-cp -r ./curve-snapshotcloneserver-nginx/docker \
-build/curve-nginx/etc/curve/nginx/
-if [ $? -ne 0 ]
-then
-    exit
-fi
 # step 4.1 prepare for nebd-package
 cp -r nebd/nebd-package build/
 mkdir -p build/nebd-package/usr/include/nebd
@@ -529,11 +420,13 @@ cp -r k8s/nebd/nebd-package build/k8s-nebd-package
 mkdir -p build/k8s-nebd-package/usr/bin
 mkdir -p build/k8s-nebd-package/usr/lib/nebd
 
-for i in `find bazel-bin/|grep -w so|grep -v solib|grep -v params|grep -v test|grep -v fake`
-do
-    cp -f $i build/nebd-package/usr/lib/nebd
-    cp -f $i build/k8s-nebd-package/usr/lib/nebd
-done
+# for i in `find bazel-bin/|grep -w so|grep -v solib|grep -v params|grep -v test|grep -v fake`
+# do
+#     cp -f $i build/nebd-package/usr/lib/nebd
+#     cp -f $i build/k8s-nebd-package/usr/lib/nebd
+# done
+cp ./bazel-bin/nebd/src/part1/libnebd_client.so build/nebd-package/usr/lib/nebd
+cp ./bazel-bin/nebd/src/part1/libnebd_client.so build/k8s-nebd-package/usr/lib/nebd
 
 cp nebd/src/part1/libnebd.h build/nebd-package/usr/include/nebd
 cp bazel-bin/nebd/src/part2/nebd-server build/nebd-package/usr/bin
@@ -556,7 +449,6 @@ echo ${version} >> build/curve-chunkserver/DEBIAN/control
 echo ${version} >> build/curve-tools/DEBIAN/control
 echo ${version} >> build/curve-monitor/DEBIAN/control
 echo ${version} >> build/curve-snapshotcloneserver/DEBIAN/control
-echo ${version} >> build/curve-nginx/DEBIAN/control
 echo ${version} >> build/nebd-package/DEBIAN/control
 echo ${version} >> build/k8s-nebd-package/DEBIAN/control
 echo ${version} >> build/nbd-package/DEBIAN/control
@@ -568,7 +460,6 @@ dpkg-deb -b build/curve-chunkserver .
 dpkg-deb -b build/curve-tools .
 dpkg-deb -b build/curve-monitor .
 dpkg-deb -b build/curve-snapshotcloneserver .
-dpkg-deb -b build/curve-nginx .
 dpkg-deb -b build/nebd-package .
 dpkg-deb -b build/k8s-nebd-package .
 dpkg-deb -b build/nbd-package .
@@ -580,4 +471,4 @@ make clean
 cd ${dir}
 
 # step7 打包python wheel
-build_curvefs_python $1
+create_python_wheel /usr/bin/python2
