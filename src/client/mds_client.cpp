@@ -191,6 +191,13 @@ int RPCExcutorRetryPolicy::GetNextMDSIndex(bool needChangeMDS,
 
 int RPCExcutorRetryPolicy::ExcuteTask(int mdsindex, uint64_t rpcTimeOutMS,
                                       RPCFunc task) {
+    if (CURVE_UNLIKELY(mdsindex < 0 ||
+                       mdsindex >= static_cast<int>(retryOpt_.addrs.size()))) {
+        LOG(WARNING) << "index out of range, index: " << mdsindex
+                     << ", range [0, " << retryOpt_.addrs.size() << ")";
+        return -EHOSTDOWN;
+    }
+
     const std::string &mdsaddr = retryOpt_.addrs[mdsindex];
 
     brpc::Channel channel;
