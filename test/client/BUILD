@@ -20,25 +20,34 @@ load("//:copts.bzl", "CURVE_TEST_COPTS")
 
 cc_test(
     name = "client_test_unittest",
-    srcs = glob([
-        "*.h",
-        "*.cpp"],
-        exclude = ["client_session_unittest.cpp",
-                "snapshot_service_unittest.cpp",
-                "client_metric_test.cpp",
-                "libcbd_libcurve_test.cpp",
-                "inflight_rpc_control_test.cpp",
-                "mds_failover_test.cpp",
-                "mds_client_test.cpp",
-                "libcurve_client_unittest.cpp",
-                "lease_executor_test.cpp",
-                "request_sender_test.cpp",
-                "mds_client_test.cpp",
-                "client_mdsclient_metacache_unittest.cpp"
-                ]
+    srcs = glob(
+        [
+            "*.h",
+            "*.cpp",
+        ],
+        exclude = [
+            "client_session_unittest.cpp",
+            "snapshot_service_unittest.cpp",
+            "client_metric_test.cpp",
+            "libcbd_libcurve_test.cpp",
+            "inflight_rpc_control_test.cpp",
+            "mds_failover_test.cpp",
+            "mds_client_test.cpp",
+            "libcurve_client_unittest.cpp",
+            "lease_executor_test.cpp",
+            "request_sender_test.cpp",
+            "mds_client_test.cpp",
+            "client_mdsclient_metacache_unittest.cpp",
+            "splitor_test.cpp",
+            "chunkserverclient_unittest.cpp",
+            "chunkserverbroadcaster_unittest.cpp",
+        ],
     ),
     copts = CURVE_TEST_COPTS,
-    defines = ["UNIT_TEST", "FIU_ENABLE"],
+    defines = [
+        "UNIT_TEST",
+        "FIU_ENABLE",
+    ],
     linkopts = ["-lfiu"],
     visibility = ["//visibility:public"],
     deps = [
@@ -54,21 +63,25 @@ cc_test(
         "//proto:topology_cc_proto",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/client/mock:client_mock_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
-        "//test/client/mock:client_mock_lib",
     ],
 )
 
 cc_test(
     name = "client_mds_failover_test",
     srcs = [
-        "mds_failover_test.cpp"],
+        "mds_failover_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
-    defines = ["UNIT_TEST", "FIU_ENABLE"],
+    defines = [
+        "UNIT_TEST",
+        "FIU_ENABLE",
+    ],
     linkopts = ["-lfiu"],
     visibility = ["//visibility:public"],
     deps = [
@@ -84,22 +97,24 @@ cc_test(
         "//proto:topology_cc_proto",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
     ],
 )
 
 cc_test(
     name = "client_inflightrpc_test",
-    srcs = glob([
-        "*.h",
-        "inflight_rpc_control_test.cpp"]
-    ),
+    srcs = [
+        "inflight_rpc_control_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
-    defines = ["UNIT_TEST", "FIU_ENABLE"],
+    defines = [
+        "UNIT_TEST",
+        "FIU_ENABLE",
+    ],
     linkopts = ["-lfiu"],
     visibility = ["//visibility:public"],
     deps = [
@@ -123,9 +138,9 @@ cc_test(
 
 cc_test(
     name = "libcurve_client_unittest",
-    srcs = glob([
-        "libcurve_client_unittest.cpp"
-    ]),
+    srcs = [
+        "libcurve_client_unittest.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],
@@ -140,9 +155,9 @@ cc_test(
 
 cc_test(
     name = "client_libcbd_unittest",
-    srcs = glob([
-        "libcbd_libcurve_test.cpp"
-    ]),
+    srcs = [
+        "libcbd_libcurve_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     linkopts = ["-lfiu"],
@@ -158,22 +173,22 @@ cc_test(
         "//proto:chunkserver-cc-protos",
         "//proto:nameserver2_cc_proto",
         "//proto:topology_cc_proto",
+        "//src/client:cbd",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//src/client:cbd",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
     ],
 )
 
 cc_test(
     name = "client_session_unittest",
-    srcs = glob([
-        "client_session_unittest.cpp"
-    ]),
+    srcs = [
+        "client_session_unittest.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],
@@ -190,20 +205,19 @@ cc_test(
         "//proto:topology_cc_proto",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
     ],
 )
 
 cc_test(
     name = "client_snapshot_test_unittest",
-    srcs = glob([
-        "*.h",
-        "snapshot_service_unittest.cpp"]
-    ),
+    srcs = [
+        "snapshot_service_unittest.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     linkopts = ["-lfiu"],
@@ -221,62 +235,59 @@ cc_test(
         "//proto:topology_cc_proto",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
     ],
 )
 
 cc_test(
     name = "client_request_sender_test",
-    srcs = glob([
-        "*.h",
-        "request_sender_test.cpp"]
-    ),
+    srcs = [
+        "request_sender_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],
     deps = [
+        "//external:brpc",
         "//external:gflags",
         "//external:glog",
-        "//external:brpc",
         "//include/client:include_client",
         "//src/client:curve_client",
+        "//test/client/mock:client_mock_lib",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/client/mock:client_mock_lib"
     ],
 )
 
 cc_test(
     name = "client_lease_executor_test",
-    srcs = glob([
-        "*.h",
-        "lease_executor_test.cpp"]
-    ),
+    srcs = [
+        "lease_executor_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     visibility = ["//visibility:public"],
     deps = [
+        "//external:brpc",
         "//external:gflags",
         "//external:glog",
-        "//external:brpc",
         "//include/client:include_client",
         "//src/client:curve_client",
+        "//test/client/mock:client_mock_lib",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/client/mock:client_mock_lib",
     ],
 )
 
 cc_test(
     name = "client_metric_test",
-    srcs = glob([
-        "*.h",
-        "client_metric_test.cpp"]
-    ),
+    srcs = [
+        "client_metric_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     defines = ["UNIT_TEST"],
     linkopts = ["-lfiu"],
@@ -294,18 +305,19 @@ cc_test(
         "//proto:topology_cc_proto",
         "//src/client:curve_client",
         "//src/common:curve_common",
-        "//test/client/fake:fake_lib",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/fake:fake_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/integration/cluster_common:integration_cluster_common",
     ],
 )
 
 cc_test(
     name = "client_mds_client_test",
     srcs = [
-        "mds_client_test.cpp"],
+        "mds_client_test.cpp",
+    ],
     copts = CURVE_TEST_COPTS,
     visibility = ["//visibility:public"],
     deps = [
@@ -322,27 +334,58 @@ cc_test(
         "//src/client:curve_client",
         "//src/common:curve_common",
         "//src/common/concurrent:curve_concurrent",
+        "//test/client/mock:client_mock_lib",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
-        "//test/client/mock:client_mock_lib"
     ],
 )
 
 cc_test(
     name = "client_mdsclient_metacache_unittest",
     srcs = [
-        "client_mdsclient_metacache_unittest.cpp"
+        "client_mdsclient_metacache_unittest.cpp",
     ],
     copts = CURVE_TEST_COPTS,
-    defines = ["UNIT_TEST", "FIU_ENABLE"],
+    defines = [
+        "UNIT_TEST",
+        "FIU_ENABLE",
+    ],
     linkopts = ["-lfiu"],
     deps = [
         "//include/client:include_client",
         "//src/client:curve_client",
-        "@com_google_googletest//:gtest",
         "//test/client/fake:fake_lib",
-        "//test/integration/cluster_common:integration_cluster_common",
         "//test/client/mock:client_mock_lib",
+        "//test/integration/cluster_common:integration_cluster_common",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/memory",
-    ]
+    ],
+)
+
+cc_test(
+    name = "chunkserver_client_test",
+    srcs = [
+        "chunkserverbroadcaster_unittest.cpp",
+        "chunkserverclient_unittest.cpp",
+    ],
+    copts = CURVE_TEST_COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//external:braft",
+        "//external:brpc",
+        "//external:gflags",
+        "//external:glog",
+        "//external:leveldb",
+        "//external:protobuf",
+        "//include/client:include_client",
+        "//proto:chunkserver-cc-protos",
+        "//proto:nameserver2_cc_proto",
+        "//proto:topology_cc_proto",
+        "//src/client:curve_client",
+        "//src/common:curve_common",
+        "//src/common/concurrent:curve_concurrent",
+        "//test/client/mock:client_mock_lib",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
 )

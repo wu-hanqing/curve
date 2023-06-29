@@ -32,6 +32,8 @@
 #include <string>
 #include <memory>
 
+#include <gtest/gtest_prod.h>
+
 #include "include/curve_compiler_specific.h"
 #include "src/client/client_common.h"
 #include "src/client/inflight_controller.h"
@@ -49,7 +51,7 @@ namespace client {
 
 using curve::common::Atomic;
 
-class FlightIOGuard;
+// class FlightIOGuard;
 
 class IOManager4File : public IOManager {
  public:
@@ -72,25 +74,10 @@ class IOManager4File : public IOManager {
      */
     void UnInitialize();
 
-    /**
-     * 同步模式读
-     * @param: buf为当前待读取的缓冲区
-     * @param：offset文件内的便宜
-     * @parma：length为待读取的长度
-     * @param: mdsclient透传给底层，在必要的时候与mds通信
-     * @return: 成功返回读取真实长度，-1为失败
-     */
-    int Read(char* buf, off_t offset, size_t length, MDSClient* mdsclient);
-    /**
-     * 同步模式写
-     * @param: mdsclient透传给底层，在必要的时候与mds通信
-     * @param: buf为当前待写入的缓冲区
-     * @param：offset文件内的便宜
-     * @param：length为待读取的长度
-     * @return： 成功返回写入真实长度，-1为失败
-     */
-    int Write(const char* buf, off_t offset, size_t length,
-              MDSClient* mdsclient);
+    int SubmitAio(CurveAioContext* aioctx,
+                  MDSClient* mdsclient,
+                  UserDataType dataType = UserDataType::RawBuffer);
+
     /**
      * 异步模式读
      * @param: mdsclient透传给底层，在必要的时候与mds通信
@@ -98,8 +85,8 @@ class IOManager4File : public IOManager {
      * @param dataType type of aioctx->buf
      * @return： 0为成功，小于0为失败
      */
-    int AioRead(CurveAioContext* aioctx, MDSClient* mdsclient,
-                UserDataType dataType);
+    // int AioRead(CurveAioContext* aioctx, MDSClient* mdsclient,
+    //             UserDataType dataType);
     /**
      * 异步模式写
      * @param: mdsclient透传给底层，在必要的时候与mds通信
@@ -107,17 +94,8 @@ class IOManager4File : public IOManager {
      * @param dataType type of aioctx->buf
      * @return： 0为成功，小于0为失败
      */
-    int AioWrite(CurveAioContext* aioctx, MDSClient* mdsclient,
-                 UserDataType dataType);
-
-    /**
-     * @brief Synchronous discard operation
-     * @param offset discard offset
-     * @param length discard length
-     * @return On success, returns 0.
-     *         On error, returns a negative value.
-     */
-    int Discard(off_t offset, size_t length, MDSClient* mdsclient);
+    // int AioWrite(CurveAioContext* aioctx, MDSClient* mdsclient,
+    //              UserDataType dataType);
 
     /**
      * @brief Asynchronous discard operation
@@ -218,7 +196,10 @@ class IOManager4File : public IOManager {
 
  private:
     friend class LeaseExecutor;
-    friend class FlightIOGuard;
+
+    FRIEND_TEST(IOTrackerSplitorTest, ExceptionTest_TEST);
+
+    // friend class FlightIOGuard;
     /**
      * lease相关接口，当LeaseExecutor续约失败的时候，调用LeaseTimeoutDisableIO
      * 将新下发的IO全部失败返回
@@ -243,20 +224,20 @@ class IOManager4File : public IOManager {
      */
     void HandleAsyncIOResponse(IOTracker* iotracker) override;
 
-    class FlightIOGuard {
-     public:
-        explicit FlightIOGuard(IOManager4File* iomana) {
-            iomanager = iomana;
-            iomanager->inflightCntl_.IncremInflightNum();
-        }
+    // class FlightIOGuard {
+    //  public:
+    //     explicit FlightIOGuard(IOManager4File* iomana) {
+    //         iomanager = iomana;
+    //         iomanager->inflightCntl_.IncremInflightNum();
+    //     }
 
-        ~FlightIOGuard() {
-            iomanager->inflightCntl_.DecremInflightNum();
-        }
+    //     ~FlightIOGuard() {
+    //         iomanager->inflightCntl_.DecremInflightNum();
+    //     }
 
-     private:
-        IOManager4File* iomanager;
-    };
+    //  private:
+    //     IOManager4File* iomanager;
+    // };
 
     bool IsNeedDiscard(size_t len) const;
 

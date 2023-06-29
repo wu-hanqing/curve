@@ -102,36 +102,21 @@ void FileInstance::UnInitialize() {
     mdsclient_.reset();
 }
 
-int FileInstance::Read(char* buf, off_t offset, size_t length) {
-    if (CURVE_UNLIKELY(!CheckAlign(offset, length, blocksize_))) {
-        LOG(ERROR) << "IO not aligned, off: " << offset
-                   << ", length: " << length
-                   << ", block size: " << blocksize_;
-        return -LIBCURVE_ERROR::NOT_ALIGNED;
-    }
+// int FileInstance::Read(char *buf, off_t offset, size_t length) {
+//     DLOG_EVERY_SECOND(INFO) << "begin Read " << finfo_.fullPathName
+//                             << ", offset = " << offset << ", len = " << length;
+//     return iomanager4file_.Read(buf, offset, length, mdsclient_.get());
+// }
 
-    DLOG_EVERY_SECOND(INFO) << "begin Read "<< finfo_.fullPathName
-                            << ", offset = " << offset
-                            << ", len = " << length;
-    return iomanager4file_.Read(buf, offset, length, mdsclient_.get());
-}
-
-int FileInstance::Write(const char *buf, off_t offset, size_t len) {
-    if (CURVE_UNLIKELY(readonly_)) {
-        DVLOG(9) << "open with read only, do not support write!";
-        return -1;
-    }
-
-    if (CURVE_UNLIKELY(!CheckAlign(offset, len, blocksize_))) {
-        LOG(ERROR) << "IO not aligned, off: " << offset << ", length: " << len
-                   << ", block size: " << blocksize_;
-        return -LIBCURVE_ERROR::NOT_ALIGNED;
-    }
-
-    DLOG_EVERY_SECOND(INFO) << "begin write " << finfo_.fullPathName
-                            << ", offset = " << offset << ", len = " << len;
-    return iomanager4file_.Write(buf, offset, len, mdsclient_.get());
-}
+// int FileInstance::Write(const char *buf, off_t offset, size_t len) {
+//     if (readonly_) {
+//         DVLOG(9) << "open with read only, do not support write!";
+//         return -1;
+//     }
+//     DLOG_EVERY_SECOND(INFO) << "begin write " << finfo_.fullPathName
+//                             << ", offset = " << offset << ", len = " << len;
+//     return iomanager4file_.Write(buf, offset, len, mdsclient_.get());
+// }
 
 int FileInstance::AioRead(CurveAioContext* aioctx, UserDataType dataType) {
     if (CURVE_UNLIKELY(
@@ -147,7 +132,7 @@ int FileInstance::AioRead(CurveAioContext* aioctx, UserDataType dataType) {
     DLOG_EVERY_SECOND(INFO) << "begin AioRead " << finfo_.fullPathName
                             << ", offset = " << aioctx->offset
                             << ", len = " << aioctx->length;
-    return iomanager4file_.AioRead(aioctx, mdsclient_.get(), dataType);
+    return iomanager4file_.SubmitAio(aioctx, mdsclient_.get(), dataType);
 }
 
 int FileInstance::AioWrite(CurveAioContext *aioctx, UserDataType dataType) {
@@ -169,17 +154,17 @@ int FileInstance::AioWrite(CurveAioContext *aioctx, UserDataType dataType) {
     DLOG_EVERY_SECOND(INFO) << "begin AioWrite " << finfo_.fullPathName
                             << ", offset = " << aioctx->offset
                             << ", len = " << aioctx->length;
-    return iomanager4file_.AioWrite(aioctx, mdsclient_.get(), dataType);
+    return iomanager4file_.SubmitAio(aioctx, mdsclient_.get(), dataType);
 }
 
-int FileInstance::Discard(off_t offset, size_t length) {
-    if (CURVE_LIKELY(!readonly_)) {
-        return iomanager4file_.Discard(offset, length, mdsclient_.get());
-    }
+// int FileInstance::Discard(off_t offset, size_t length) {
+//     if (!readonly_) {
+//         return iomanager4file_.Discard(offset, length, mdsclient_.get());
+//     }
 
-    LOG(ERROR) << "Open with read only, not support Discard";
-    return -1;
-}
+//     LOG(ERROR) << "Open with read only, not support Discard";
+//     return -1;
+// }
 
 int FileInstance::AioDiscard(CurveAioContext *aioctx) {
     if (CURVE_LIKELY(!readonly_)) {

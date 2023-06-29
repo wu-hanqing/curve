@@ -41,7 +41,7 @@ namespace client {
 
 using curve::chunkserver::CHUNK_OP_STATUS;
 
-std::atomic<uint64_t> IOTracker::tracekerID_(1);
+std::atomic<uint64_t> IOTracker::trackerID_(1);
 DiscardOption IOTracker::discardOption_;
 
 IOTracker::IOTracker(IOManager* iomanager,
@@ -54,15 +54,13 @@ IOTracker::IOTracker(IOManager* iomanager,
       iomanager_(iomanager),
       fileMetric_(clientMetric),
       disableStripe_(disableStripe) {
-    id_         = tracekerID_.fetch_add(1, std::memory_order_relaxed);
-    scc_        = nullptr;
+    id_         = trackerID_.fetch_add(1, std::memory_order_relaxed);
     aioctx_     = nullptr;
     data_       = nullptr;
     type_       = OpType::UNKNOWN;
     errcode_    = LIBCURVE_ERROR::OK;
     offset_     = 0;
     length_     = 0;
-    reqlist_.clear();
     reqcount_.store(0, std::memory_order_release);
     opStartTimePoint_ = curve::common::TimeUtility::GetTimeofDayUs();
 }
@@ -73,18 +71,54 @@ void IOTracker::ReleaseAllSegmentLocks() {
     }
 }
 
-void IOTracker::StartRead(void* buf, off_t offset, size_t length,
-                          MDSClient* mdsclient, const FInfo_t* fileInfo,
-                          Throttle* throttle) {
-    data_ = buf;
-    offset_ = offset;
-    length_ = length;
-    type_ = OpType::READ;
+namespace {
 
-    DVLOG(9) << "read op, offset = " << offset << ", length = " << length;
-
-    DoRead(mdsclient, fileInfo, throttle);
+OpType ToOpType(LIBCURVE_OP op) {
+    switch (op) {
+        case LIBCURVE_OP::LIBCURVE_OP_READ:
+            return OpType::READ;
+        case LIBCURVE_OP::LIBCURVE_OP_WRITE:
+            return OpType::WRITE;
+        case LIBCURVE_OP::LIBCURVE_OP_DISCARD:
+            return OpType::DISCARD;
+        default:
+            return OpType::UNKNOWN;
+    }
 }
+
+}  // namespace
+
+void IOTracker::StartAio(CurveAioContext* ctx,
+                         MDSClient* mdsclient,
+                         const FInfo* fileInfo,
+                         const FileEpoch* epoch,
+                         Throttle* throttle) {
+    aioctx_ = ctx;
+    data_ = ctx->buf;
+    offset_ = ctx->offset;
+    length_ = ctx->length;
+    type_ = ToOpType(ctx->op);
+
+    if (type_ == OpType::WRITE) {
+        DoWrite(mdsclient, fileInfo, epoch, throttle);
+    } else {
+        assert(type_ == OpType::READ);
+        DoRead(mdsclient, fileInfo, throttle);
+    }
+}
+
+// void IOTracker::StartRead(void* buf, off_t offset, size_t length,
+//                           MDSClient* mdsclient, const FInfo_t* fileInfo,
+//                           Throttle* throttle) {
+//     data_ = buf;
+//     offset_ = offset;
+//     length_ = length;
+//     type_ = OpType::READ;
+
+//     DVLOG(9) << "read op, offset = " << offset << ", length = " << length;
+
+//     DoRead(mdsclient, fileInfo, throttle);
+// }
 
 void IOTracker::StartAioRead(CurveAioContext* ctx, MDSClient* mdsclient,
                              const FInfo_t* fileInfo, Throttle* throttle) {
@@ -160,19 +194,19 @@ int IOTracker::ReadFromSource(const std::vector<RequestContext*>& reqCtxVec,
     return SourceReader::GetInstance().Read(reqCtxVec, userInfo, mdsClient);
 }
 
-void IOTracker::StartWrite(const void* buf, off_t offset, size_t length,
-                           MDSClient* mdsclient, const FInfo_t* fileInfo,
-                           const FileEpoch* fEpoch,
-                           Throttle* throttle) {
-    data_ = const_cast<void*>(buf);
-    offset_ = offset;
-    length_ = length;
-    type_ = OpType::WRITE;
+// void IOTracker::StartWrite(const void* buf, off_t offset, size_t length,
+//                            MDSClient* mdsclient, const FInfo_t* fileInfo,
+//                            const FileEpoch* fEpoch,
+//                            Throttle* throttle) {
+//     data_ = const_cast<void*>(buf);
+//     offset_ = offset;
+//     length_ = length;
+//     type_ = OpType::WRITE;
 
-    DVLOG(9) << "write op, offset = " << offset << ", length = " << length;
+//     DVLOG(9) << "write op, offset = " << offset << ", length = " << length;
 
-    DoWrite(mdsclient, fileInfo, fEpoch, throttle);
-}
+//     DoWrite(mdsclient, fileInfo, fEpoch, throttle);
+// }
 
 void IOTracker::StartAioWrite(CurveAioContext* ctx, MDSClient* mdsclient,
                               const FInfo_t* fileInfo, const FileEpoch* fEpoch,
@@ -235,15 +269,15 @@ void IOTracker::DoWrite(MDSClient* mdsclient, const FInfo_t* fileInfo,
     }
 }
 
-void IOTracker::StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
-                             const FInfo* fileInfo,
-                             DiscardTaskManager* taskManager) {
-    offset_ = offset;
-    length_ = length;
-    type_ = OpType::DISCARD;
+// void IOTracker::StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
+//                              const FInfo* fileInfo,
+//                              DiscardTaskManager* taskManager) {
+//     offset_ = offset;
+//     length_ = length;
+//     type_ = OpType::DISCARD;
 
-    DoDiscard(mdsclient, fileInfo, taskManager);
-}
+//     DoDiscard(mdsclient, fileInfo, taskManager);
+// }
 
 void IOTracker::StartAioDiscard(CurveAioContext* ctx, MDSClient* mdsclient,
                                 const FInfo_t* fileInfo,
@@ -287,7 +321,7 @@ void IOTracker::DoDiscard(MDSClient* mdsClient, const FInfo* fileInfo,
 void IOTracker::ReadSnapChunk(const ChunkIDInfo &cinfo,
     uint64_t seq, uint64_t offset, uint64_t len,
     char *buf, SnapCloneClosure* scc) {
-    scc_    = scc;
+    aioDone_    = scc;
     data_   = buf;
     offset_ = offset;
     length_ = len;
@@ -317,8 +351,9 @@ void IOTracker::ReadSnapChunk(const ChunkIDInfo &cinfo,
 }
 
 void IOTracker::DeleteSnapChunkOrCorrectSn(const ChunkIDInfo &cinfo,
-    uint64_t correctedSeq) {
+    uint64_t correctedSeq, AioClosure* done) {
     type_ = OpType::DELETE_SNAP;
+    aioDone_ = done;
 
     int ret = -1;
     do {
@@ -344,8 +379,9 @@ void IOTracker::DeleteSnapChunkOrCorrectSn(const ChunkIDInfo &cinfo,
 }
 
 void IOTracker::GetChunkInfo(const ChunkIDInfo &cinfo,
-    ChunkInfoDetail *chunkInfo) {
+    ChunkInfoDetail *chunkInfo, AioClosure* done) {
     type_ = OpType::GET_CHUNK_INFO;
+    aioDone_ = done;
 
     int ret = -1;
     do {
@@ -375,7 +411,7 @@ void IOTracker::CreateCloneChunk(const std::string& location,
                                  uint64_t correntSn, uint64_t chunkSize,
                                  SnapCloneClosure* scc) {
     type_ = OpType::CREATE_CLONE;
-    scc_ = scc;
+    aioDone_ = scc;
 
     int ret = -1;
     do {
@@ -406,7 +442,7 @@ void IOTracker::CreateCloneChunk(const std::string& location,
 void IOTracker::RecoverChunk(const ChunkIDInfo& cinfo, uint64_t offset,
                              uint64_t len, SnapCloneClosure* scc) {
     type_ = OpType::RECOVER_CHUNK;
-    scc_ = scc;
+    aioDone_ = scc;
 
     int ret = -1;
     do {
@@ -459,9 +495,9 @@ void IOTracker::InitDiscardOption(const DiscardOption& opt) {
     discardOption_ = opt;
 }
 
-int IOTracker::Wait() {
-    return iocv_.Wait();
-}
+// int IOTracker::Wait() {
+//     return iocv_.Wait();
+// }
 
 void IOTracker::Done() {
     if (type_ == OpType::READ || type_ == OpType::WRITE) {
@@ -531,28 +567,28 @@ void IOTracker::Done() {
         }
     }
 
-    DestoryRequestList();
+    DestroyRequestList();
 
     // scc_和aioctx都为空的时候肯定是个同步调用
-    if (scc_ == nullptr && aioctx_ == nullptr) {
-        iocv_.Complete(ToReturnCode());
-        return;
-    }
+    // if (scc_ == nullptr && aioctx_ == nullptr) {
+    //     iocv_.Complete(ToReturnCode());
+    //     return;
+    // }
 
     // 异步函数调用，在此处发起回调
     if (aioctx_ != nullptr) {
         aioctx_->ret = ToReturnCode();
         aioctx_->cb(aioctx_);
     } else {
-        scc_->SetRetCode(ToReturnCode());
-        scc_->Run();
+        aioDone_->SetRetCode(ToReturnCode());
+        aioDone_->Run();
     }
 
     // 回收当前io tracker
     iomanager_->HandleAsyncIOResponse(this);
 }
 
-void IOTracker::DestoryRequestList() {
+void IOTracker::DestroyRequestList() {
     for (auto iter : reqlist_) {
         iter->UnInit();
         delete iter;

@@ -367,10 +367,10 @@ void GetLeaderClosure::Run() {
     } else {
         success = true;
         LOG(INFO) << "GetLeader returned from " << cntl.remote_side()
-                    << ", logicpool id = " << logicPoolId
-                    << ", copyset id = " << copysetId
-                    << ", proxy id = " << proxy->proxyId_
-                    << ", leader = " << response.DebugString();
+                  << ", logicpool id = " << logicPoolId
+                  << ", copyset id = " << copysetId
+                  << ", proxy id = " << proxy->proxyId_
+                  << ", leader = " << response.ShortDebugString();
     }
     proxy->HandleResponse(cntl.call_id(), success, response.leader());
 }

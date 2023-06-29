@@ -47,6 +47,8 @@
 #include "src/common/uuid.h"
 #include "src/common/string_util.h"
 
+#include "src/client/aio_wrapper.h"
+
 bool globalclientinited_ = false;
 curve::client::FileClient *globalclient = nullptr;
 
@@ -355,44 +357,30 @@ int FileClient::Create2(const CreateFileContext& context) {
 }
 
 int FileClient::Read(int fd, char *buf, off_t offset, size_t len) {
-    // 长度为0，直接返回，不做任何操作
-    if (len == 0) {
-        return -LIBCURVE_ERROR::OK;
+    auto wrapper = AioWrapper::Read(offset, len, buf);
+    int ret = AioRead(fd, wrapper->Context());
+    if (ret != 0) {
+        return ret;
     }
-
-    ReadLockGuard lk(rwlock_);
-    if (CURVE_UNLIKELY(fileserviceMap_.find(fd) == fileserviceMap_.end())) {
-        LOG(ERROR) << "invalid fd!";
-        return -LIBCURVE_ERROR::BAD_FD;
-    }
-
-    return fileserviceMap_[fd]->Read(buf, offset, len);
+    return wrapper->Wait();
 }
 
 int FileClient::Write(int fd, const char *buf, off_t offset, size_t len) {
-    // 长度为0，直接返回，不做任何操作
-    if (len == 0) {
-        return -LIBCURVE_ERROR::OK;
+    auto wrapper = AioWrapper::Write(offset, len, const_cast<char*>(buf));
+    int ret = AioWrite(fd, wrapper->Context());
+    if (ret != 0) {
+        return ret;
     }
-
-    ReadLockGuard lk(rwlock_);
-    if (CURVE_UNLIKELY(fileserviceMap_.find(fd) == fileserviceMap_.end())) {
-        LOG(ERROR) << "invalid fd!";
-        return -LIBCURVE_ERROR::BAD_FD;
-    }
-
-    return fileserviceMap_[fd]->Write(buf, offset, len);
+    return wrapper->Wait();
 }
 
 int FileClient::Discard(int fd, off_t offset, size_t length) {
-    ReadLockGuard lk(rwlock_);
-    auto iter = fileserviceMap_.find(fd);
-    if (CURVE_UNLIKELY(iter == fileserviceMap_.end())) {
-        LOG(ERROR) << "invalid fd, fd = " << fd;
-        return -LIBCURVE_ERROR::BAD_FD;
+    auto wrapper = AioWrapper::Discard(offset, length);
+    int ret = AioDiscard(fd, wrapper->Context());
+    if (ret != 0) {
+        return ret;
     }
-
-    return iter->second->Discard(offset, length);
+    return wrapper->Wait();
 }
 
 int FileClient::AioRead(int fd, CurveAioContext *aioctx,

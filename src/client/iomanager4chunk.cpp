@@ -25,6 +25,9 @@
 #include "src/client/io_tracker.h"
 #include "src/client/splitor.h"
 
+#include <bthread/mutex.h>
+#include <bthread/condition_variable.h>
+
 namespace curve {
 namespace client {
 IOManager4Chunk::IOManager4Chunk() {
@@ -65,19 +68,55 @@ int IOManager4Chunk::ReadSnapChunk(const ChunkIDInfo& chunkidinfo,
     return 0;
 }
 
+namespace {
+
+class SyncWait : public AioClosure {
+ public:
+    void SetRetCode(int retCode) override {
+        std::lock_guard<bthread::Mutex> lock{mutex_};
+        retCode_ = retCode;
+    }
+
+    void Run() override {
+        std::lock_guard<bthread::Mutex> lock{mutex_};
+        done_ = true;
+        cond_.notify_all();
+    }
+
+    int Wait() {
+        std::unique_lock<bthread::Mutex> lock{mutex_};
+        while (!done_) {
+            cond_.wait(lock);
+        }
+        
+        return retCode_;
+    }
+
+ private:
+    int retCode_{-LIBCURVE_ERROR::FAILED};
+    bool done_{false};
+
+    bthread::Mutex mutex_;
+    bthread::ConditionVariable cond_;
+};
+
+}  // namespace
+
 int IOManager4Chunk::DeleteSnapChunkOrCorrectSn(const ChunkIDInfo &chunkidinfo,
     uint64_t correctedSeq) {
 
+    SyncWait done;
     IOTracker temp(this, &mc_, scheduler_);
-    temp.DeleteSnapChunkOrCorrectSn(chunkidinfo, correctedSeq);
-    return temp.Wait();
+    temp.DeleteSnapChunkOrCorrectSn(chunkidinfo, correctedSeq, &done);
+    return done.Wait();
 }
 
 int IOManager4Chunk::GetChunkInfo(const ChunkIDInfo &chunkidinfo,
                                   ChunkInfoDetail *chunkInfo) {
+    SyncWait done;
     IOTracker temp(this, &mc_, scheduler_);
-    temp.GetChunkInfo(chunkidinfo, chunkInfo);
-    return temp.Wait();
+    temp.GetChunkInfo(chunkidinfo, chunkInfo, &done);
+    return done.Wait();
 }
 
 int IOManager4Chunk::CreateCloneChunk(const std::string &location,

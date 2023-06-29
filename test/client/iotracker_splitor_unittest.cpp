@@ -51,6 +51,8 @@
 #include "test/client/fake/mockMDS.h"
 #include "test/client/fake/mock_schedule.h"
 
+#include "src/client/aio_wrapper.h"
+
 extern std::string mdsMetaServerAddr;
 extern uint32_t chunk_size;
 extern std::string configpath;
@@ -447,7 +449,10 @@ TEST_F(IOTrackerSplitorTest, StartRead) {
     char* data = new char[length];
 
     auto threadfunc = [&]() {
-        iomana->Read(data, offset, length, mdsclient_.get());
+        auto read = AioWrapper::Read(offset, length, data);
+        iomana->AioRead(read->Context(), mdsclient_.get(),
+                        UserDataType::RawBuffer);
+        read->Wait();
     };
     std::thread process(threadfunc);
 
@@ -481,7 +486,10 @@ TEST_F(IOTrackerSplitorTest, StartWrite) {
     memset(buf + 4 * 1024 + chunk_size, 'c', 4 * 1024);
 
     auto threadfunc = [&]() {
-        iomana->Write(buf, offset, length, mdsclient_.get());
+        auto write = AioWrapper::Write(offset, length, buf);
+        iomana->AioWrite(write->Context(), mdsclient_.get(),
+                         UserDataType::RawBuffer);
+        write->Wait();
     };
     std::thread process(threadfunc);
 
@@ -681,8 +689,10 @@ TEST_F(IOTrackerSplitorTest, ManagerStartRead) {
     char* data = new char[length];
 
     auto threadfunc = [&]() {
-        ASSERT_EQ(length,
-                  ioctxmana->Read(data, offset, length, mdsclient_.get()));
+        auto read = AioWrapper::Read(offset, length, data);
+        ioctxmana->AioRead(read->Context(), mdsclient_.get(),
+                           UserDataType::RawBuffer);
+        read->Wait();
     };
     std::thread process(threadfunc);
 
@@ -715,7 +725,10 @@ TEST_F(IOTrackerSplitorTest, ManagerStartWrite) {
     memset(buf + 4 * 1024 + chunk_size, 'c', 4 * 1024);
 
     auto threadfunc = [&]() {
-        ioctxmana->Write(buf, offset, length, mdsclient_.get());
+        auto write = AioWrapper::Write(offset, length, buf);
+        ioctxmana->AioWrite(write->Context(), mdsclient_.get(),
+                            UserDataType::RawBuffer);
+        write->Wait();
     };
     std::thread process(threadfunc);
 
@@ -742,7 +755,7 @@ TEST_F(IOTrackerSplitorTest, ExceptionTest_TEST) {
     FInfo_t fi;
     fi.chunksize = 4 * 1024 * 1024;
     fi.segmentsize = 1 * 1024 * 1024 * 1024ul;
-    auto fileserv = new FileInstance();
+    auto* fileserv = new FileInstance();
 
     UserInfo_t rootuserinfo;
     rootuserinfo.owner = "root";
@@ -752,7 +765,7 @@ TEST_F(IOTrackerSplitorTest, ExceptionTest_TEST) {
                                      OpenFlags{}, fopt));
     ASSERT_EQ(LIBCURVE_ERROR::OK, fileserv->Open());
     curve::client::IOManager4File* iomana = fileserv->GetIOManager4File();
-    MetaCache* mc = fileserv->GetIOManager4File()->GetMetaCache();
+    MetaCache* mc = iomana->GetMetaCache();
 
     FileMetric fileMetric("/test");
     IOTracker* iotracker = new IOTracker(iomana, mc, mockschuler, &fileMetric);
@@ -762,23 +775,30 @@ TEST_F(IOTrackerSplitorTest, ExceptionTest_TEST) {
     uint64_t length = 4 * 1024 * 1024 + 8 * 1024;
     char* buf = new char[length];
 
+    auto write = AioWrapper::Write(offset, length, nullptr);
+
     auto waitfunc = [&]() {
-        int retlen = iotracker->Wait();
-        ASSERT_EQ(-LIBCURVE_ERROR::FAILED, retlen);
+        auto ret = write->Wait();
+        ASSERT_EQ(-LIBCURVE_ERROR::FAILED, ret);
     };
 
     auto threadfunc = [&]() {
         iotracker->SetUserDataType(UserDataType::RawBuffer);
-        iotracker->StartWrite(nullptr, offset, length, mdsclient_.get(),
-            &fi, nullptr);
+        iotracker->StartAioWrite(write->Context(), mdsclient_.get(), &fi,
+                                 nullptr);
     };
 
+    iomana->inflightCntl_.IncremInflightNum();
     std::thread process(threadfunc);
     std::thread waitthread(waitfunc);
 
     uint64_t off = 4 * 1024 * 1024 * 1024ul - 4 * 1024;
     uint64_t len = 4 * 1024 * 1024 + 8 * 1024;
-    iomana->Write(buf, off, len, mdsclient_.get());
+
+    auto write2 = AioWrapper::Write(off, len, buf);
+    iomana->AioWrite(write2->Context(), mdsclient_.get(),
+                     UserDataType::RawBuffer);
+    write2->Wait();
 
     if (process.joinable()) {
         process.join();
@@ -801,8 +821,7 @@ TEST_F(IOTrackerSplitorTest, BoundaryTEST) {
 
     // this offset and length will make splitor split fail.
     // we set disk size = 1G.
-    uint64_t offset = 1 * 1024 * 1024 * 1024 -
-                     4 * 1024 * 1024 - 4 *1024;
+    uint64_t offset = 1 * 1024 * 1024 * 1024 - 4 * 1024 * 1024 - 4 * 1024;
     uint64_t length = 4 * 1024 * 1024 + 8 * 1024;
     char* buf = new char[length];
 
@@ -811,8 +830,10 @@ TEST_F(IOTrackerSplitorTest, BoundaryTEST) {
     memset(buf + 4 * 1024 + chunk_size, 'c', 4 * 1024);
 
     auto threadfunc = [&]() {
-        ASSERT_EQ(-1 * LIBCURVE_ERROR::FAILED,
-                  ioctxmana->Write(buf, offset, length, mdsclient_.get()));
+        auto write = AioWrapper::Write(offset, length, buf);
+        ioctxmana->AioWrite(write->Context(), mdsclient_.get(),
+                            UserDataType::RawBuffer);
+        ASSERT_EQ(-LIBCURVE_ERROR::FAILED, write->Wait());
     };
     std::thread process(threadfunc);
 
@@ -1200,7 +1221,10 @@ TEST_F(IOTrackerSplitorTest, StartReadNotAllocateSegment) {
     char* data = new char[length];
 
     auto threadfunc = [&]() {
-        iomana->Read(data, offset, length, mdsclient_.get());
+        auto read = AioWrapper::Read(offset, length, data);
+        iomana->AioRead(read->Context(), mdsclient_.get(),
+                        UserDataType::RawBuffer);
+        read->Wait();
     };
     std::thread process(threadfunc);
 
@@ -1263,7 +1287,10 @@ TEST_F(IOTrackerSplitorTest, StartReadNotAllocateSegment2) {
     char* data = new char[length];
 
     auto threadfunc = [&]() {
-        iomana->Read(data, offset, length, mdsclient_.get());
+        auto read = AioWrapper::Read(offset, length, data);
+        iomana->AioRead(read->Context(), mdsclient_.get(),
+                        UserDataType::RawBuffer);
+        read->Wait();
     };
     std::thread process(threadfunc);
 
@@ -1376,7 +1403,10 @@ TEST_F(IOTrackerSplitorTest, StartReadNotAllocateSegmentFromOrigin) {
     char* data = new char[length];
 
     auto threadfunc = [&]() {
-        iomana->Read(data, offset, length, mdsclient_.get());
+        auto read = AioWrapper::Read(offset, length, data);
+        iomana->AioRead(read->Context(), mdsclient_.get(),
+                        UserDataType::RawBuffer);
+        read->Wait();
     };
     std::thread process(threadfunc);
 

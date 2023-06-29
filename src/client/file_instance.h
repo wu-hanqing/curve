@@ -64,21 +64,17 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
     int Open(std::string* sessionId = nullptr);
 
     /**
-     * 同步模式读
-     * @param: buf为当前待读取的缓冲区
-     * @param：offset文件内的便宜
-     * @parma：length为待读取的长度
-     * @return： 成功返回读取真实长度，-1为失败
+     * 重新打开文件
+     * @param filename为文件名
+     * @param sessionId为上次打开文件时返回的sessionid
+     * @param userInfo为user信息
+     * @param[out] newSessionId为ReOpen成功时返回的新sessionid
+     * @return 成功返回LIBCURVE_ERROR::OK, 否则LIBCURVE_ERROR::FAILED
      */
-    int Read(char* buf, off_t offset, size_t length);
-    /**
-     * 同步模式写
-     * @param: buf为当前待写入的缓冲区
-     * @param：offset文件内的便宜
-     * @parma：length为待读取的长度
-     * @return： 成功返回写入真实长度，-1为失败
-     */
-    int Write(const char* buf, off_t offset, size_t length);
+    int ReOpen(const std::string& filenam,
+               const std::string& sessionId,
+               const UserInfo& userInfo,
+               std::string* newSessionId);
     /**
      * 异步模式读
      * @param: aioctx为异步读写的io上下文，保存基本的io信息
@@ -93,14 +89,6 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
      * @return: 0为成功，小于0为失败
      */
     int AioWrite(CurveAioContext* aioctx, UserDataType dataType);
-
-    /**
-     * @param offset discard offset
-     * @param length discard length
-     * @return On success, returns 0.
-     *         On error, returns a negative value.
-     */
-    int Discard(off_t offset, size_t length);
 
     /**
      * @brief Asynchronous discard operation

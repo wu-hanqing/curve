@@ -40,6 +40,7 @@
 #include "src/client/client_config.h"
 #include "test/integration/cluster_common/cluster.h"
 #include "test/util/config_generator.h"
+#include "src/client/aio_wrapper.h"
 
 DECLARE_string(chunkserver_list);
 
@@ -72,7 +73,8 @@ TEST(MetricTest, ChunkServer_MetricTest) {
     std::shared_ptr<MDSClient> mdsclient = std::make_shared<MDSClient>();
     ASSERT_EQ(0, mdsclient->Initialize(metaopt));
 
-    FLAGS_chunkserver_list = "127.0.0.1:9130:0,127.0.0.1:9131:0,127.0.0.1:9132:0";   // NOLINT
+    FLAGS_chunkserver_list =
+        "127.0.0.1:9130:0,127.0.0.1:9131:0,127.0.0.1:9132:0";
 
     std::string configpath("./test/client/configs/client_metric.conf");
     curve::CurveCluster* cluster = new curve::CurveCluster();
@@ -125,9 +127,7 @@ TEST(MetricTest, ChunkServer_MetricTest) {
 
     FileMetric* fm = fi.GetIOManager4File()->GetMetric();
 
-    char* buffer;
-
-    buffer = new char[8 * 1024];
+    char* buffer = new char[8 * 1024];
     memset(buffer, 'a', 1024);
     memset(buffer + 1024, 'b', 1024);
     memset(buffer + 2 * 1024, 'c', 1024);
@@ -137,15 +137,21 @@ TEST(MetricTest, ChunkServer_MetricTest) {
     memset(buffer + 6 * 1024, 'g', 1024);
     memset(buffer + 7 * 1024, 'h', 1024);
 
-    int ret = fi.Write(buffer, 0, 8192);
-    ASSERT_EQ(8192, ret);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(4096, ret);
+    auto write = AioWrapper::Write(0, 8192, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(8192, write->Wait());
 
-    ret = fi.Read(buffer, 0, 8192);
-    ASSERT_EQ(8192, ret);
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(4096, ret);
+    write = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(4096, write->Wait());
+
+    auto read = AioWrapper::Write(0, 8192, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(8192, read->Wait());
+
+    read = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(4096, read->Wait());
 
     // 先睡眠，确保采样
     std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -155,16 +161,21 @@ TEST(MetricTest, ChunkServer_MetricTest) {
 
     // read write超时重试
     mds.EnableNetUnstable(8000);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
+    write = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, write->Wait());
 
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
+    write = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, write->Wait());
 
+    read = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, read->Wait());
+
+    read = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, read->Wait());
 
     // 4次正确读写，4次超时读写,超时会引起重试，重试次数为3，数据量最大是8192
     ASSERT_EQ(fm->inflightRPCNum.get_value(), 0);
@@ -212,7 +223,8 @@ TEST(MetricTest, SuspendRPC_MetricTest) {
     std::shared_ptr<MDSClient> mdsclient = std::make_shared<MDSClient>();
     ASSERT_EQ(0, mdsclient->Initialize(metaopt));
 
-    FLAGS_chunkserver_list = "127.0.0.1:9130:0,127.0.0.1:9131:0,127.0.0.1:9132:0";   // NOLINT
+    FLAGS_chunkserver_list =
+        "127.0.0.1:9130:0,127.0.0.1:9131:0,127.0.0.1:9132:0";
 
     // filename必须是全路径
     std::string filename = "/1_userinfo_";
@@ -244,9 +256,7 @@ TEST(MetricTest, SuspendRPC_MetricTest) {
 
     FileMetric* fm = fi.GetIOManager4File()->GetMetric();
 
-    char* buffer;
-
-    buffer = new char[8 * 1024];
+    char* buffer = new char[8 * 1024];
     memset(buffer, 'a', 1024);
     memset(buffer + 1024, 'b', 1024);
     memset(buffer + 2 * 1024, 'c', 1024);
@@ -256,15 +266,21 @@ TEST(MetricTest, SuspendRPC_MetricTest) {
     memset(buffer + 6 * 1024, 'g', 1024);
     memset(buffer + 7 * 1024, 'h', 1024);
 
-    int ret = fi.Write(buffer, 0, 8192);
-    ASSERT_EQ(8192, ret);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(4096, ret);
+    auto write = AioWrapper::Read(0, 8192, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(8192, write->Wait());
 
-    ret = fi.Read(buffer, 0, 8192);
-    ASSERT_EQ(8192, ret);
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(4096, ret);
+    write = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(4096, write->Wait());
+
+    auto read = AioWrapper::Read(0, 8192, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(8192, read->Wait());
+
+    read = AioWrapper::Read(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(4096, read->Wait());
 
     // 先睡眠，确保采样
     std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -274,15 +290,22 @@ TEST(MetricTest, SuspendRPC_MetricTest) {
 
     // read write超时重试
     mds.EnableNetUnstable(100);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
-    ret = fi.Write(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
 
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
-    ret = fi.Read(buffer, 0, 4096);
-    ASSERT_EQ(-2, ret);
+    write = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, write->Wait());
+
+    write = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, write->Wait());
+
+    read = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, read->Wait());
+
+    read = AioWrapper::Write(0, 4096, buffer);
+    ASSERT_EQ(0, fi.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(-2, read->Wait());
 
     ASSERT_EQ(fm->suspendRPCMetric.count.get_value(), 0);
 

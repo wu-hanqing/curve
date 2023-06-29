@@ -30,6 +30,8 @@
 #include "test/client/mock/mock_mdsclient.h"
 #include "test/client/mock/mock_meta_cache.h"
 
+#include "src/client/aio_wrapper.h"
+
 namespace curve {
 namespace client {
 
@@ -86,9 +88,10 @@ TEST_F(IOTrackerTest, TestDiscardNotSatisfyOneSegment) {
     EXPECT_CALL(*mockMDSClient_, DeAllocateSegment(_, _)).Times(0);
     EXPECT_CALL(*mockMetaCache_, CleanChunksInSegment(_)).Times(0);
 
-    iotracker.StartDiscard(offset, length, mockMDSClient_.get(), &fileInfo_,
-                           discardTaskManager_.get());
-    ASSERT_EQ(0, iotracker.Wait());
+    auto discard = AioWrapper::Discard(offset, length);
+    iotracker.StartAioDiscard(discard->Context(), mockMDSClient_.get(),
+                              &fileInfo_, discardTaskManager_.get());
+    ASSERT_EQ(0, discard->Wait());
 
     // check bitmap
     Bitmap& bitmap = mockMetaCache_->GetFileSegment(50)->GetBitmap();
@@ -115,9 +118,10 @@ TEST_F(IOTrackerTest, TestDiscardOneSegment) {
         .WillOnce(Return(LIBCURVE_ERROR::OK));
     EXPECT_CALL(*mockMetaCache_, CleanChunksInSegment(50)).Times(1);
 
-    iotracker.StartDiscard(offset, length, mockMDSClient_.get(), &fileInfo_,
-                           discardTaskManager_.get());
-    ASSERT_EQ(0, iotracker.Wait());
+    auto discard = AioWrapper::Discard(offset, length);
+    iotracker.StartAioDiscard(discard->Context(), mockMDSClient_.get(),
+                              &fileInfo_, discardTaskManager_.get());
+    ASSERT_EQ(0, discard->Wait());
 
     // check bitmap
     Bitmap& bitmap = mockMetaCache_->GetFileSegment(50)->GetBitmap();
@@ -154,17 +158,20 @@ TEST_F(IOTrackerTest, TestDiscardMultiSegment) {
     EXPECT_CALL(*mockMetaCache_, CleanChunksInSegment(segmentIndexRange))
         .Times(3);
 
-    iotracker1.StartDiscard(offset1, length1, mockMDSClient_.get(), &fileInfo_,
+    auto discard = AioWrapper::Discard(offset1, length1);
+    iotracker1.StartAioDiscard(discard->Context(), mockMDSClient_.get(), &fileInfo_,
                             discardTaskManager_.get());
-    ASSERT_EQ(0, iotracker1.Wait());
+    ASSERT_EQ(0, discard->Wait());
 
-    iotracker2.StartDiscard(offset2, length2, mockMDSClient_.get(), &fileInfo_,
-                            discardTaskManager_.get());
-    ASSERT_EQ(0, iotracker2.Wait());
+    discard = AioWrapper::Discard(offset2, length2);
+    iotracker2.StartAioDiscard(discard->Context(), mockMDSClient_.get(),
+                               &fileInfo_, discardTaskManager_.get());
+    ASSERT_EQ(0, discard->Wait());
 
-    iotracker3.StartDiscard(offset3, length3, mockMDSClient_.get(), &fileInfo_,
-                            discardTaskManager_.get());
-    ASSERT_EQ(0, iotracker3.Wait());
+    discard = AioWrapper::Discard(offset3, length3);
+    iotracker3.StartAioDiscard(discard->Context(), mockMDSClient_.get(),
+                               &fileInfo_, discardTaskManager_.get());
+    ASSERT_EQ(0, discard->Wait());
 
     // check bitmap
     Bitmap& bitmap1 = mockMetaCache_->GetFileSegment(50)->GetBitmap();

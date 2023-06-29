@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 #include "src/client/file_instance.h"
+#include "src/client/aio_wrapper.h"
 
 namespace curve {
 namespace client {
@@ -54,7 +55,9 @@ TEST(FileInstanceTest, CommonTest) {
     FileInstance fi4;
     ASSERT_TRUE(fi4.Initialize("/test", mdsclient, userInfo, OpenFlags{},
                                FileServiceOption{}, true));
-    ASSERT_EQ(-1, fi4.Write("", 0, 0));
+    auto write = AioWrapper::Write(0, 0, nullptr);
+    ASSERT_EQ(-1, fi4.AioWrite(write->Context(), UserDataType::RawBuffer));
+    // ASSERT_EQ(-1, fi4.Write("", 0, 0));
 
     fi4.UnInitialize();
 }
@@ -68,8 +71,6 @@ TEST(FileInstanceTest, OpenReadonlyAndDiscardTest) {
     ASSERT_TRUE(
         instance.Initialize("/FileInstanceTest-OpenReadonlyAndDiscardTest",
                             mdsclient, userInfo, OpenFlags{}, opt, true));
-
-    ASSERT_EQ(-1, instance.Discard(0, 0));
 
     CurveAioContext aioctx;
     aioctx.op = LIBCURVE_OP::LIBCURVE_OP_DISCARD;

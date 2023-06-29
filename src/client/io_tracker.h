@@ -64,29 +64,35 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
 
     ~IOTracker() = default;
 
-    /**
-     * @brief StartRead同步读
-     * @param buf 读缓冲区
-     * @param offset 读偏移
-     * @param length 读长度
-     * @param mdsclient 透传给splitor，与mds通信
-     * @param fileInfo 当前io对应文件的基本信息
-     */
-    void StartRead(void* buf, off_t offset, size_t length, MDSClient* mdsclient,
-                   const FInfo_t* fileInfo, Throttle* throttle = nullptr);
+    // /**
+    //  * @brief StartRead同步读
+    //  * @param buf 读缓冲区
+    //  * @param offset 读偏移
+    //  * @param length 读长度
+    //  * @param mdsclient 透传给splitor，与mds通信
+    //  * @param fileInfo 当前io对应文件的基本信息
+    //  */
+    // void StartRead(void* buf, off_t offset, size_t length, MDSClient* mdsclient,
+    //                const FInfo_t* fileInfo, Throttle* throttle = nullptr);
 
-    /**
-     * @brief StartWrite同步写
-     * @param buf 写缓冲区
-     * @param offset 写偏移
-     * @param length 写长度
-     * @param mdsclient 透传给splitor，与mds通信
-     * @param fileInfo 当前io对应文件的基本信息
-     */
-    void StartWrite(const void* buf, off_t offset, size_t length,
-                    MDSClient* mdsclient, const FInfo_t* fileInfo,
-                    const FileEpoch* fEpoch,
-                    Throttle* throttle = nullptr);
+    // /**
+    //  * @brief StartWrite同步写
+    //  * @param buf 写缓冲区
+    //  * @param offset 写偏移
+    //  * @param length 写长度
+    //  * @param mdsclient 透传给splitor，与mds通信
+    //  * @param fileInfo 当前io对应文件的基本信息
+    //  */
+    // void StartWrite(const void* buf, off_t offset, size_t length,
+    //                 MDSClient* mdsclient, const FInfo_t* fileInfo,
+    //                 const FileEpoch* fEpoch,
+    //                 Throttle* throttle = nullptr);
+
+    void StartAio(CurveAioContext* ctx,
+                  MDSClient* mdsclient,
+                  const FInfo_t* fileInfo,
+                  const FileEpoch* epoch,
+                  Throttle* throttle = nullptr);
 
     /**
      * @brief start an async read operation
@@ -108,8 +114,8 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
                        const FInfo_t* fileInfo,
                        const FileEpoch* fEpoch, Throttle* throttle = nullptr);
 
-    void StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
-                      const FInfo_t* fileInfo, DiscardTaskManager* taskManager);
+    // void StartDiscard(off_t offset, size_t length, MDSClient* mdsclient,
+    //                   const FInfo_t* fileInfo, DiscardTaskManager* taskManager);
 
     void StartAioDiscard(CurveAioContext* ctx, MDSClient* mdsclient,
                          const FInfo_t* fileInfo,
@@ -139,14 +145,14 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
      * @param: seq是需要修正的版本号
      */
     void DeleteSnapChunkOrCorrectSn(const ChunkIDInfo &cinfo,
-                     uint64_t correctedSeq);
+                     uint64_t correctedSeq, AioClosure* done);
     /**
      * 获取chunk的版本信息，chunkInfo是出参
      * @param:chunkidinfo 目标chunk
      * @param: chunkInfo是快照的详细信息
      */
     void GetChunkInfo(const ChunkIDInfo &cinfo,
-                     ChunkInfoDetail *chunkInfo);
+                     ChunkInfoDetail *chunkInfo, AioClosure* done);
 
     /**
      * @brief lazy 创建clone chunk
@@ -180,7 +186,7 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
      * @return: 返回读写信息，异步IO的时候返回0或-1.0代表成功，-1代表失败
      *          同步IO返回length或-1，length代表真实读写长度，-1代表读写失败
      */
-    int Wait();
+    // int Wait();
 
     /**
      * 每个request都要有自己的OP类型，这里提供接口可以在io拆分的时候获取类型
@@ -243,7 +249,7 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     /**
      * 用户下来的大IO会被拆分成多个子IO，这里在返回之前将子IO资源回收
      */
-    void DestoryRequestList();
+    void DestroyRequestList();
 
     /**
      * 填充request context common字段
@@ -318,7 +324,7 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     // 当用户下发的是同步IO的时候，其需要在上层进行等待，因为client的
     // IO发送流程全部是异步的，因此这里需要用条件变量等待，待异步IO返回
     // 之后才将这个等待的条件变量唤醒，然后向上返回。
-    IOConditionVariable  iocv_;
+    // IOConditionVariable  iocv_;
 
     // 异步IO的context，在异步IO返回时，通过调用aioctx
     // 的异步回调进行返回。
@@ -357,7 +363,8 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     uint64_t id_;
 
     // 快照克隆系统异步调用回调指针
-    SnapCloneClosure* scc_;
+    // SnapCloneClosure* scc_;
+    AioClosure* aioDone_{nullptr};
 
     bool disableStripe_;
 
@@ -366,7 +373,7 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
     std::vector<FileSegment*> segmentLocks_;
 
     // id生成器
-    static std::atomic<uint64_t> tracekerID_;
+    static std::atomic<uint64_t> trackerID_;
 
     static DiscardOption discardOption_;
 };

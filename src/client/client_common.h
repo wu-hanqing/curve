@@ -266,11 +266,18 @@ struct ClusterContext {
     std::string clusterId;
 };
 
-class SnapCloneClosure : public google::protobuf::Closure {
+class AioClosure : public google::protobuf::Closure {
+ public:
+    ~AioClosure() override = default;
+
+    virtual void SetRetCode(int retCode) = 0;
+};
+
+class SnapCloneClosure : public AioClosure {
  public:
     SnapCloneClosure() : ret(-LIBCURVE_ERROR::FAILED) {}
 
-    void SetRetCode(int retCode) { ret = retCode; }
+    void SetRetCode(int retCode) override { ret = retCode; }
     int GetRetCode() { return ret; }
 
  private:

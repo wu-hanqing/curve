@@ -39,6 +39,8 @@
 #include "test/client/fake/fakeMDS.h"
 #include "test/client/fake/mock_schedule.h"
 
+#include "src/client/aio_wrapper.h"
+
 extern std::string configpath;
 extern uint32_t chunk_size;
 extern uint32_t segment_size;
@@ -50,6 +52,8 @@ DECLARE_uint64(test_disk_size);
 
 namespace curve {
 namespace client {
+
+namespace {
 
 bool writeflag = false;
 bool readflag = false;
@@ -71,6 +75,8 @@ void readcallbacktest(CurveAioContext *context) {
     interfacecv.notify_one();
     LOG(INFO) << "aio call back here, errorcode = " << context->ret;
 }
+
+}  // namespace
 
 TEST(TestLibcurveInterface, InterfaceTest) {
     FLAGS_chunkserver_list =
@@ -604,8 +610,20 @@ TEST(TestLibcurveInterface, InterfaceExceptionTest) {
 
     ASSERT_EQ(0, Init(configpath.c_str()));
 
+
     char *buffer = new char[8 * 1024];
     memset(buffer, 'a', 8 * 1024);
+
+    // not aligned test
+    CurveAioContext ctx;
+    ctx.buf = buffer;
+    ctx.offset = 1;
+    ctx.length = 7 * 1024;
+    ctx.cb = writecallbacktest;
+    ASSERT_EQ(-LIBCURVE_ERROR::NOT_ALIGNED, AioWrite(1234, &ctx));
+    ASSERT_EQ(-LIBCURVE_ERROR::NOT_ALIGNED, AioRead(1234, &ctx));
+    ASSERT_EQ(-LIBCURVE_ERROR::NOT_ALIGNED, Write(1234, buffer, 1, 4096));
+    ASSERT_EQ(-LIBCURVE_ERROR::NOT_ALIGNED, Read(1234, buffer, 4096, 123));
 
     CurveAioContext writeaioctx;
     writeaioctx.buf = buffer;
@@ -692,7 +710,7 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     mds.CreateCopysetNode(true);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    int fd = fileinstance_.Open();
+    int fd = fileinstance_.Open(nullptr);
 
     MetaCache *mc = fileinstance_.GetIOManager4File()->GetMetaCache();
 
@@ -714,8 +732,18 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     memset(buffer + 6 * 1024, 'o', 1024);
     memset(buffer + 7 * 1024, 'p', 1024);
 
-    ASSERT_EQ(length, fileinstance_.Write(buffer, offset, length));
-    ASSERT_EQ(length, fileinstance_.Read(buffer, offset, length));
+    auto write = AioWrapper::Write(offset, length, buffer);
+    ASSERT_EQ(
+        0, fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(length, write->Wait());
+
+    auto read = AioWrapper::Read(offset, length, buffer);
+    ASSERT_EQ(0,
+              fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer));
+    ASSERT_EQ(length, read->Wait());
+
+    // ASSERT_EQ(length, fileinstance_.Write(buffer, offset, length));
+    // ASSERT_EQ(length, fileinstance_.Read(buffer, offset, length));
 
     // metacache中被写过的copyset leadermaychange都处于正常状态
     ChunkIDInfo_t chunkinfo1;
@@ -742,10 +770,21 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     // 下次发起请求时，会先去刷新leader信息，
     // 由于leader没有发生改变，而且延迟仍然存在
     // 所以第12次请求仍然超时，leaderMayChange仍然为true
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Read(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Read(buffer, 1 * chunk_size, length));
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
+
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, read->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, read->Wait());
 
     // 获取第2个chunk的chunkid信息
     ChunkIDInfo_t chunkinfo2;
@@ -768,10 +807,21 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     // 不进入超时时间指数退避逻辑，rpc超时时间设置为默认值
     // 所以每个请求总时间为3s，4个请求需要12s
     auto start = TimeUtility::GetTimeofDayMs();
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Read(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(-2, fileinstance_.Read(buffer, 1 * chunk_size, length));
+
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, read->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, read->Wait());
+
     auto end = TimeUtility::GetTimeofDayMs();
     ASSERT_GT(end - start, 11 * 1000);
     ASSERT_LT(end - start, 13 * 1000);
@@ -781,8 +831,14 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     // 取消延迟，再次读写第2个chunk
     // 获取leader信息后，会将leaderMayChange置为false
     // 第一个chunk对应的copyset依赖leaderMayChange为true
-    ASSERT_EQ(8192, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(8192, fileinstance_.Read(buffer, 1 * chunk_size, length));
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, write->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, read->Wait());
+
     for (int i = 0; i < FLAGS_copyset_num; ++i) {
         CopysetInfo<ChunkServerID> ci =
             mc->GetCopysetinfo(FLAGS_logic_pool_id, i);
@@ -807,10 +863,21 @@ TEST(TestLibcurveInterface, UnstableChunkserverTest) {
     // 设置rcp返回失败，迫使copyset切换leader, 切换leader后读写成功
     chunkservice[0]->SetRPCFailed();
 
-    ASSERT_EQ(8192, fileinstance_.Write(buffer, 0 * chunk_size, length));
-    ASSERT_EQ(8192, fileinstance_.Read(buffer, 0 * chunk_size, length));
-    ASSERT_EQ(8192, fileinstance_.Write(buffer, 1 * chunk_size, length));
-    ASSERT_EQ(8192, fileinstance_.Read(buffer, 1 * chunk_size, length));
+    write = AioWrapper::Write(0 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, write->Wait());
+
+    read = AioWrapper::Read(0 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, read->Wait());
+
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, write->Wait());
+
+    read = AioWrapper::Read(1 * chunk_size, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(8192, read->Wait());
 
     for (int i = 0; i < FLAGS_copyset_num; ++i) {
         CopysetInfo<ChunkServerID> ci =
@@ -881,7 +948,7 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
     mds.CreateCopysetNode(true);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    int fd = fileinstance_.Open();
+    int fd = fileinstance_.Open(nullptr);
 
     MetaCache *mc = fileinstance_.GetIOManager4File()->GetMetaCache();
 
@@ -902,8 +969,13 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
     memset(buffer + 6 * 1024, 'o', 1024);
     memset(buffer + 7 * 1024, 'p', 1024);
 
-    ASSERT_EQ(length, fileinstance_.Write(buffer, offset, length));
-    ASSERT_EQ(length, fileinstance_.Read(buffer, offset, length));
+    auto write = AioWrapper::Write(offset, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(length, write->Wait());
+
+    auto read = AioWrapper::Read(offset, length, buffer);
+    fileinstance_.AioRead(read->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(length, read->Wait());
 
     // metacache中被写过的copyset leadermaychange都处于正常状态
     ChunkIDInfo_t chunkinfo1;
@@ -926,7 +998,9 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
     // 写2次, 每次请求重试11次
     // 因为在chunkserver端设置了延迟，导致每次请求都会超时
     // 第一个请求重试11次，会把chunkserver标记为unstable
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
 
     // 第二个写请求，由于其对应的copyset leader may change
     // 第1次请求超时时间为1s
@@ -935,7 +1009,10 @@ TEST(TestLibcurveInterface, ResumeTimeoutBackoff) {
     // 所以超时时间都进入指数退避，为8s * 6 = 48s
     // 所以第二次写请求，总共耗时53s，并写入失败
     auto start = TimeUtility::GetTimeofDayMs();
-    ASSERT_EQ(-2, fileinstance_.Write(buffer, 1 * chunk_size, length));
+    write = AioWrapper::Write(1 * chunk_size, length, buffer);
+    fileinstance_.AioWrite(write->Context(), UserDataType::RawBuffer);
+    ASSERT_EQ(-2, write->Wait());
+
     auto elapsedMs = TimeUtility::GetTimeofDayMs() - start;
     ASSERT_GE(elapsedMs, 52 * 1000);
     ASSERT_LE(elapsedMs, 55 * 1000);
