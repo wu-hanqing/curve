@@ -91,9 +91,9 @@ int NBDTool::Connect(NBDConfig *cfg) {
         return ret;
     }
 
-    NBDControllerPtr nbdCtrl = GetController(cfg->try_netlink);
-    nbdServer_ = std::make_shared<NBDServer>(socketPair_.Second(), nbdCtrl,
-                                             imageInstance);
+    controller_ = GetController(cfg->try_netlink);
+    nbdServer_ =
+        std::make_shared<NBDServer>(socketPair_.Second(), imageInstance);
 
     // setup controller
     uint64_t flags = NBD_FLAG_SEND_FLUSH | NBD_FLAG_SEND_TRIM |
@@ -101,13 +101,13 @@ int NBDTool::Connect(NBDConfig *cfg) {
     if (cfg->readonly) {
         flags |= NBD_FLAG_READ_ONLY;
     }
-    ret = nbdCtrl->SetUp(cfg, socketPair_.First(), fileSize, flags);
+    ret = controller_->SetUp(cfg, socketPair_.First(), fileSize, flags);
     if (ret < 0) {
         return -1;
     }
 
     nbdWatchCtx_ =
-        std::make_shared<NBDWatchContext>(nbdCtrl, imageInstance, fileSize);
+        std::make_shared<NBDWatchContext>(controller_, imageInstance, fileSize);
 
     return 0;
 }
@@ -156,13 +156,13 @@ void NBDTool::RunServerUntilQuit() {
     // start watch context
     nbdWatchCtx_->WatchImageSize();
 
-    NBDControllerPtr ctrl = nbdServer_->GetController();
-    if (ctrl->IsNetLink()) {
+    if (controller_->IsNetLink()) {
         nbdServer_->WaitForDisconnect();
     } else {
-        ctrl->RunUntilQuit();
+        controller_->RunUntilQuit();
     }
 
+    controller_->ClearUp();
     nbdWatchCtx_->StopWatch();
 }
 
