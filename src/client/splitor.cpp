@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "src/client/file_instance.h"
 #include "src/client/mds_client.h"
@@ -268,10 +269,8 @@ bool Splitor::GetOrAllocateSegment(bool allocateIfNotExist,
         }
     }
 
-    for (const auto& copysetInfo : copysetInfos) {
-        metaCache->UpdateCopysetInfo(segmentInfo.lpcpIDInfo.lpid,
-                                     copysetInfo.cpid_, copysetInfo);
-    }
+    metaCache->AddCopysetInfos(segmentInfo.lpcpIDInfo.lpid,
+                               std::move(copysetInfos));
 
     return true;
 }

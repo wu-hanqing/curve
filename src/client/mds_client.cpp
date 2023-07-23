@@ -814,6 +814,7 @@ LIBCURVE_ERROR MDSClient::GetServerList(
         }
 
         int csinfonum = response.csinfo_size();
+        cpinfoVec->reserve(csinfonum);
         for (int i = 0; i < csinfonum; i++) {
             std::string copyset_peer;
             CopysetInfo copysetseverl;

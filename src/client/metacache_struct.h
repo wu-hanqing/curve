@@ -27,6 +27,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <utility>
 
 #include "include/curve_compiler_specific.h"
 #include "src/client/client_common.h"
@@ -39,7 +40,7 @@ using curve::common::SpinLock;
 
 // copyset内的chunkserver节点的基本信息
 // 包含当前chunkserver的id信息，以及chunkserver的地址信息
-struct CURVE_CACHELINE_ALIGNMENT CopysetPeerInfo {
+struct CopysetPeerInfo {
     // 当前chunkserver节点的ID
     ChunkServerID chunkserverID = 0;
     // 当前chunkserver节点的内部地址
@@ -48,12 +49,14 @@ struct CURVE_CACHELINE_ALIGNMENT CopysetPeerInfo {
     ChunkServerAddr externalAddr;
 
     CopysetPeerInfo() = default;
-    CopysetPeerInfo& operator=(const CopysetPeerInfo& other) = default;
 
     CopysetPeerInfo(const ChunkServerID& cid,
                     const ChunkServerAddr& internal,
                     const ChunkServerAddr& external)
         : chunkserverID(cid), internalAddr(internal), externalAddr(external) {}
+
+    CopysetPeerInfo(const CopysetPeerInfo& other) = default;
+    CopysetPeerInfo& operator=(const CopysetPeerInfo& other) = default;
 
     bool operator==(const CopysetPeerInfo& other) const {
         return this->internalAddr == other.internalAddr &&
@@ -67,7 +70,7 @@ struct CURVE_CACHELINE_ALIGNMENT CopysetPeerInfo {
 };
 
 // copyset的基本信息，包含peer信息、leader信息、appliedindex信息
-struct CURVE_CACHELINE_ALIGNMENT CopysetInfo {
+struct CopysetInfo {
     // leader存在变更可能标志位
     bool leaderMayChange_ = false;
     // 当前copyset的节点信息
@@ -99,6 +102,30 @@ struct CURVE_CACHELINE_ALIGNMENT CopysetInfo {
           lastappliedindex_(other.lastappliedindex_.load()),
           leaderindex_(other.leaderindex_),
           cpid_(other.cpid_) {}
+
+    CopysetInfo(CopysetInfo&& other) noexcept
+        : leaderMayChange_(other.leaderMayChange_),
+          csinfos_(std::move(other.csinfos_)),
+          lastappliedindex_(
+              other.lastappliedindex_.load(std::memory_order_relaxed)),
+          leaderindex_(other.leaderindex_),
+          cpid_(other.cpid_) {}
+    
+    CopysetInfo& operator=(CopysetInfo&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+
+        leaderMayChange_ = other.leaderMayChange_;
+        csinfos_ = std::move(other.csinfos_);
+        lastappliedindex_.store(
+            other.lastappliedindex_.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+        leaderindex_ = other.leaderindex_;
+        cpid_ = other.cpid_;
+ 
+        return *this;
+    }
 
     uint64_t GetAppliedIndex() const {
         return lastappliedindex_.load(std::memory_order_acquire);
@@ -249,9 +276,6 @@ struct CopysetIDInfo {
 
     CopysetIDInfo(LogicPoolID logicpoolid, CopysetID copysetid)
         : lpid(logicpoolid), cpid(copysetid) {}
-
-    CopysetIDInfo(const CopysetIDInfo& other) = default;
-    CopysetIDInfo& operator=(const CopysetIDInfo& other) = default;
 };
 
 inline bool operator<(const CopysetIDInfo& cpidinfo1,

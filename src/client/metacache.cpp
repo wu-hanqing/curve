@@ -301,6 +301,18 @@ uint64_t MetaCache::GetAppliedIndex(LogicPoolID logicPoolId,
     return iter->second.GetAppliedIndex();
 }
 
+void MetaCache::AddCopysetInfos(LogicPoolID poolId,
+                                std::vector<CopysetInfo>&& infos) {
+    WriteLockGuard guard(rwlock4CopysetInfo_);
+    for (auto& info : infos) {
+        const auto key = CalcLogicPoolCopysetID(poolId, info.cpid_);
+        auto it = lpcsid2CopsetInfoMap_.find(key);
+        if (it == lpcsid2CopsetInfoMap_.end()) {
+            lpcsid2CopsetInfoMap_.emplace(key, std::move(info));
+        }
+    }
+}
+
 void MetaCache::UpdateChunkInfoByID(ChunkID cid, const ChunkIDInfo& cidinfo) {
     WriteLockGuard wrlk(rwlock4chunkInfoMap_);
     chunkid2chunkInfoMap_[cid] = cidinfo;
