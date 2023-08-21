@@ -42,7 +42,7 @@ ClientClosure::BackoffParam  ClientClosure::backoffParam_;
 FailureRequestOption  ClientClosure::failReqOpt_;
 
 void ClientClosure::PreProcessBeforeRetry(int rpcstatus, int cntlstatus) {
-    RequestClosure* reqDone = static_cast<RequestClosure*>(done_);
+    RequestClosure * reqDone = static_cast<RequestClosure*>(done_);
 
     // 如果对应的cooysetId leader可能发生变更
     // 那么设置这次重试请求超时时间为默认值
