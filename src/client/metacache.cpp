@@ -41,8 +41,8 @@ using curve::common::WriteLockGuard;
 using curve::common::ReadLockGuard;
 using curve::client::ClientConfig;
 
-void MetaCache::Init(const MetaCacheOption& metaCacheOpt,
-                     MDSClient* mdsclient) {
+void MetaCache::Init(const MetaCacheOption &metaCacheOpt,
+                     MDSClient *mdsclient) {
     mdsclient_ = mdsclient;
     metacacheopt_ = metaCacheOpt;
     LOG(INFO) << "metacache init success, get leader retry times = "
