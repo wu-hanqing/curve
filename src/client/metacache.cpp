@@ -41,7 +41,7 @@ using curve::common::WriteLockGuard;
 using curve::common::ReadLockGuard;
 using curve::client::ClientConfig;
 
-void MetaCache::Init(const MetaCacheOption& metaCacheOpt,
+void MetaCache::Init(const MetaCacheOption &metaCacheOpt,
                      MDSClient *mdsclient) {
     mdsclient_ = mdsclient;
     metacacheopt_ = metaCacheOpt;
