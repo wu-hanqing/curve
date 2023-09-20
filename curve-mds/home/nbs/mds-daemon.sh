@@ -37,6 +37,32 @@ daemonLog=${logPath}/curve-mds-daemon.log
 # console output
 consoleLog=${logPath}/curve-mds-console.log
 
+function ping_etcd() {
+    if=$1
+    targets=$2
+
+    for target in ${targets}; do
+        packet_loss=$(ping -c 3 -w 2 ${target} -I $if | grep "packet loss" | awk '{print $6}' | cut -d% -f1)
+        if [ $packet_loss -ne 0 ]; then
+            echo "ping ${target} via ${if} encounter packet loss ${packet_loss}%"
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+function precheck_network() {
+    if=$1
+
+    etcd_addrs=$(cat ${confPath} | grep "mds.etcd.endpoint" | awk -F'=' '{ print $2 }' | awk -F "," '{for(i=1;i<=NF;i++) print $i}' | awk -F ":" '{print $1}' | sort -u)
+    ping_etcd $if "$etcd_addrs"
+    if [ $? -ne 0 ]; then
+        echo "network check failed, please check network configuration"
+        exit 1
+    fi
+}
+
 # 启动mds
 function start_mds() {
   # 检查daemon
@@ -129,6 +155,10 @@ function start_mds() {
         fi
         mdsAddr=${ip}:${port}
   fi
+
+  echo "precheck network..."
+  precheck_network ${ip}
+  echo "precheck network done"
 
   daemon --name curve-mds --core --inherit \
     --respawn --attempts 100 --delay 10 \
