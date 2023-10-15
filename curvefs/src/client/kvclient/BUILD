@@ -21,10 +21,10 @@ cc_library(
     srcs = glob(["*.cpp"]),
     hdrs = glob(["*.h"]),
     copts = CURVE_DEFAULT_COPTS,
-    linkopts = [
-        "-L/usr/local/lib",
-    ],
     visibility = ["//visibility:public"],
+#    linkopts = [
+#        "-lmemcached",
+#    ],
     deps = [
         "//curvefs/proto:curvefs_topology_cc_proto",
         "//curvefs/src/client/common:common",
@@ -34,6 +34,6 @@ cc_library(
         "//external:bthread",
         "//src/common:curve_common",
         "//src/common:curve_s3_adapter",
-        "@libmemcached",
+	"@libmemcached",
     ],
 )

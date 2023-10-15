@@ -1,0 +1,42 @@
+---
+Checks: '
+  -*,
+  abseil-*,
+  bugprone-*,
+  google-*,
+  misc-*, 
+  modernize-*,
+  performance-*,
+  readability-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-avoid-goto,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-emplace,
+  -modernize-use-auto,
+  -misc-const-correctness,
+  -readability-redundant-access-specifiers,
+  -readability-implicit-bool-conversion,
+  -bugprone-easily-swappable-parameters'
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+UseColor:        true
+CheckOptions:
+  - key:          modernize-loop-convert.MaxCopySize
+    value:        '16'
+  - key:          bugprone-assert-side-effect.AssertMacros
+    value:        assert,DCHECK
+  - key:          bugprone-dangling-handle.HandleClasses
+    value:        ::std::basic_string_view;::std::span;::absl::string_view
+  - key:          readability-identifier-naming.VariableCase
+    value:        camelBack
+  - key:          readability-identifier-length.MinimumVariableNameLength
+    value:        2
+  - key:          readability-identifier-length.MinimumParameterNameLength
+    value:        2
+  - key:          readability-identifier-length.IgnoredVariableNames
+    value:        '[einp]'
+...
+
