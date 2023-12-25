@@ -203,6 +203,12 @@ http_archive(
     sha256 = "2e82517045efb55409cff1408c12829d9e8aea22c1e2888529cb769b7473b0bf",
     strip_prefix = "aws-sdk-cpp-1.7.340",
     build_file = "//:thirdparties/aws/aws.BUILD",
+    patch_args = [
+        "-p0",
+    ],
+    patches = [
+        "//:thirdparties/aws/0001-thread_executor_thread_stack_size.patch",
+    ],
 )
 
 http_archive(
